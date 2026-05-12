@@ -14,7 +14,7 @@ let timerSeconds = 0;
 let currentTab = "mic";
 
 // ─── Model Setup ──────────────────────────────────────────────────────────
-const MODEL_ID = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
+const MODEL_ID = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
 
 async function initModel() {
   setStatus("loading", "Initializing model…");
