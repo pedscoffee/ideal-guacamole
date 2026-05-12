@@ -14,11 +14,11 @@ let timerSeconds = 0;
 let currentTab = "mic";
 
 // ─── Model Setup ──────────────────────────────────────────────────────────
-const MODEL_ID = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
+const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 
 async function initModel() {
   setStatus("loading", "Initializing model…");
-  showProgress(true, "Downloading model weights (first load ~700MB, cached after)…", 0);
+  showProgress(true, "Downloading model weights (first load ~2.3GB, cached after)…", 0);
 
   try {
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
@@ -130,7 +130,6 @@ function setupSpeechRecognition() {
 
   recognition.onend = () => {
     if (isRecording) {
-      // Auto-restart for continuous listening
       try { recognition.start(); } catch (_) {}
     }
   };
@@ -187,7 +186,6 @@ window.processNote = async function() {
 
   if (!input) return;
 
-  // Show streaming UI
   const empty = document.getElementById("outputEmpty");
   const content = document.getElementById("outputContent");
   const streaming = document.getElementById("outputStreaming");
@@ -202,36 +200,54 @@ window.processNote = async function() {
 
   document.getElementById("btnProcess").disabled = true;
 
-  const systemPrompt = `You are a clinical documentation assistant that converts clinician dictation into concise, telegraphic assessment and plan notes for each problem.
+  const systemPrompt = `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.
 
-OUTPUT FORMAT — for each problem/diagnosis mentioned:
+# OUTPUT FORMAT
+
+For each diagnosis/problem mentioned, present bullets in this order when present:
+
 Diagnosis or Problem Name
-- Brief telegraphic bullet about management
-- Labs if ordered
-- Imaging if ordered]
-- Medications with doses if mentioned
+- Labs
+- Imaging
+- Medications with exact doses if stated
+- Treatment / plan actions
 - Supportive care
-- Situational awareness / conditional orders if mentioned
-- Return precautions include if mentioned
+- Differential if mentioned
+- Conditional plans if mentioned
+- Return precautions if mentioned
 - Nursing orders if mentioned
-- Follow-up timing if mentioned
+- Follow-Up if mentioned
 
-RULES:
-- Use telegraphic style: short, direct phrases, no full sentences, no unnecessary words
-- Do not label problems with diagnosis or problem, just list the diagnosis or problem
-- Only include bullet points for information actually mentioned in the dictation
-- Do NOT add bullets for categories not mentioned
-- List diagnoses in the order they appear in the dictation
-- Medication names and doses should be exact as dictated
-- If a differential is mentioned, format as: "Differential includes X, Y, and Z"
-- If follow-up is mentioned, format as: Follow-Up:
-- Return precautions start with: "Return precautions include..."
-- Separate each problem with a blank line
-- Do NOT include any explanation, preamble, or commentary — output ONLY the structured note
+Separate each problem with one blank line.
 
-## Conditional Boilerplate Text
+# STYLE RULES
 
-[Insert after all problem blocks and before the follow-up line when applicable. Add a blank line before and after each boilerplate statement.]
+- Use concise telegraphic bullets only
+- No full sentences unless necessary for clarity
+- No commentary, explanation, or preamble
+- Output ONLY the note
+- Do not use markdown formatting — no asterisks, no pound signs, plain text only
+- Include only information explicitly stated or clearly implied
+- Do not invent diagnoses, medications, labs, imaging, or follow-up
+- Preserve clinician wording when reasonable
+- Keep diagnoses in order mentioned
+- Do not create empty categories or placeholder bullets
+- Medication names and doses must match dictation exactly
+
+# FORMATTING RULES
+
+- Differentials format:
+  Differential includes X, Y, Z
+
+- Return precautions format:
+  Return precautions include...
+
+- Follow-up format:
+  Follow-Up: ...
+
+# CONDITIONAL INSERTIONS
+
+Insert the following boilerplate text exactly when the relevant clinical condition is detected. Add a blank line before and after each inserted block. Place all boilerplate after all problem blocks.
 
 If well child check or health maintenance discussed:
 "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. Screening questions, past medical history, past social history, medications, and growth chart reviewed. Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed."
@@ -257,49 +273,50 @@ If trouble breathing discussed:
 If ADHD, weight, obesity, or strep throat discussed:
 "PCMH Reminder"
 
-## Few-Shot Examples
+# EXAMPLES
 
 Acute Otitis Media
 - Amoxicillin
-- Tylenol, Motrin, and emphasis on hydration
-- Return precautions include worsening fever, pain, or failure to improve
+- Tylenol, Motrin, hydration
+- Return precautions include worsening fever, pain, failure to improve
 - Follow-Up: PRN
 
 ADHD, combined
-- Concerta 18mg increased to Concerta 27mg PO daily
-- Counseling referral placed today
+- Concerta increased from 18mg to 27mg PO daily
+- Counseling referral placed
 - Follow-Up: 3 months
 
 Fever
 - Differential includes Kawasaki disease, MIS-C, RMSF
-- CBC, CMP, ESR, CRP, and UA
+- CBC, CMP, ESR, CRP, UA
 - Chest XR
-- 1L NS bolus, IVIG
+- NS bolus, IVIG
 - Tylenol, Motrin, Zofran
-- If decrease in BP, then will give another 1L NS bolus and consider ICU
-- Vitals q4hr, call if change in rash
+- If hypotension develops, repeat NS bolus and consider ICU
+- Vitals q4hr
+- Return precautions include worsening fever, new rash, change in mental status
+- Follow-Up: next day or sooner PRN
 
 Well Child Check
 - Growing and developing well
 - Anticipatory guidance discussed
-- All questions addressed
-- Follow up: 1 year/PRN
+- Questions addressed
+- Follow-Up: 1 year/PRN
 
 Abnormal Well Child Check
 - Growing well
-- Speech delay noted, will refer for speech therapy and audiology
+- Speech delay noted, referral placed for speech therapy and audiology
 - Anticipatory guidance discussed
-- All questions addressed
-- Follow up: 1 year/PRN
+- Questions addressed
+- Follow-Up: 1 year/PRN
 
 Rash
-- Differential includes ringworm, pityriasis rosea, and scabies
-- Ketoconazole
-- Zyrtec, atarax for itching and sleep
-- Return precautions include worsening rash, worsening itch, and failure to improve
-- If spreads further or fails to improve with ketoconazole may consider permethrin
-- Follow-Up: PRN
-`;
+- Differential includes ringworm, pityriasis rosea, scabies
+- Ketoconazole cream
+- Zyrtec, Atarax for itching and sleep
+- If spreads or fails to improve with ketoconazole, consider permethrin
+- Return precautions include worsening rash, worsening itch, failure to improve
+- Follow-Up: PRN`;
 
   const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}`;
 
@@ -312,7 +329,8 @@ Rash
       ],
       stream: true,
       temperature: 0.1,
-      max_tokens: 1024
+      max_tokens: 1024,
+      extra_body: { enable_thinking: false }
     });
 
     for await (const chunk of stream) {
@@ -321,7 +339,6 @@ Rash
       streamText.textContent = fullText;
     }
 
-    // Parse and render structured output
     streaming.style.display = "none";
     renderOutput(fullText);
     btnCopy.style.display = "flex";
@@ -353,7 +370,6 @@ function renderOutput(raw) {
 
     const isBullet = trimmed.startsWith("-") || trimmed.startsWith("•");
     if (!isBullet && trimmed.length > 0) {
-      // New problem heading
       const block = document.createElement("div");
       block.className = "problem-block";
       block.style.animationDelay = `${blockCount * 0.08}s`;
@@ -373,7 +389,6 @@ function renderOutput(raw) {
       currentItems = ul;
       blockCount++;
 
-      // Trigger animation
       requestAnimationFrame(() => {
         block.style.opacity = "";
       });
@@ -382,7 +397,6 @@ function renderOutput(raw) {
       li.textContent = trimmed.replace(/^[-•]\s*/, "");
       currentItems.appendChild(li);
     } else if (!currentBlock) {
-      // Fallback: create a generic block
       const block = document.createElement("div");
       block.className = "problem-block";
       const title = document.createElement("div");
@@ -399,7 +413,6 @@ function renderOutput(raw) {
     }
   }
 
-  // If nothing was parsed, show raw
   if (blockCount === 0) {
     content.innerHTML = `<pre style="font-family:var(--font-mono);font-size:0.8rem;line-height:1.8;color:var(--text);padding:1rem;white-space:pre-wrap">${raw}</pre>`;
   }
@@ -430,7 +443,6 @@ window.clearAll = function() {
   document.getElementById("btnCopy").style.display = "none";
 
   const area = document.getElementById("outputArea");
-  // Remove any error divs
   const err = area.querySelector(".error-msg");
   if (err) err.remove();
   area.appendChild(document.getElementById("outputEmpty"));
