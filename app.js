@@ -205,16 +205,16 @@ window.processNote = async function() {
   const systemPrompt = `You are a clinical documentation assistant that converts clinician dictation into concise, telegraphic assessment and plan notes for each problem.
 
 OUTPUT FORMAT — for each problem/diagnosis mentioned:
-[Diagnosis or Problem Name]
-- [brief telegraphic bullet about management]
-- [labs if ordered]
-- [imaging if ordered]
-- [medications with doses if mentioned]
-- [supportive care]
-- [situational awareness / conditional orders if mentioned]
-- [return precautions if mentioned]
-- [nursing orders if mentioned]
-- [follow-up timing if mentioned]
+Diagnosis or Problem Name
+- Brief telegraphic bullet about management
+- Labs if ordered
+- Imaging if ordered]
+- Medications with doses if mentioned
+- Supportive care
+- Situational awareness / conditional orders if mentioned
+- Return precautions include if mentioned
+- Nursing orders if mentioned
+- Follow-up timing if mentioned
 
 RULES:
 - Use telegraphic style: short, direct phrases, no full sentences, no unnecessary words
@@ -223,10 +223,82 @@ RULES:
 - List diagnoses in the order they appear in the dictation
 - Medication names and doses should be exact as dictated
 - If a differential is mentioned, format as: "Differential includes X, Y, and Z"
-- If follow-up is mentioned, format as: "Follow-Up: [timing]"
+- If follow-up is mentioned, format as: Follow-Up:
 - Return precautions start with: "Return precautions include..."
 - Separate each problem with a blank line
-- Do NOT include any explanation, preamble, or commentary — output ONLY the structured note`;
+- Do NOT include any explanation, preamble, or commentary — output ONLY the structured note
+
+## Conditional Boilerplate Text
+
+[Insert after all problem blocks and before the follow-up line when applicable. Add a blank line before and after each boilerplate statement.]
+
+If well child check or health maintenance discussed:
+"All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. Screening questions, past medical history, past social history, medications, and growth chart reviewed. Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed."
+
+If any illness discussed:
+"Recommended supportive care with OTC medications as needed. Return precautions given including increasing pain, worsening fever, dehydration, new symptoms, prolonged symptoms, worsening symptoms, and other concerns. Caregiver expressed understanding and agreement with treatment plan."
+
+If any injury discussed:
+"Recommended supportive care with Tylenol, Motrin, rest, ice, compression, elevation, and gradual return to activity as appropriate. Return precautions given including increasing pain, swelling, or failure to improve."
+
+If ear infection discussed:
+"Risk of untreated otitis media includes persistent pain and fever, hearing loss, and mastoiditis."
+
+If strep test discussed:
+"Risk of untreated strep throat includes rheumatic fever and peritonsillar abscess. This problem is moderate risk due to pending lab results which may necessitate further pharmacologic management."
+
+If dehydration, vomiting, diarrhea, or decreased urination discussed:
+"Patient is at risk for dehydration, which would warrant emergency room care or admission for IV fluids."
+
+If trouble breathing discussed:
+"Patient is at risk for worsening respiratory distress and clinical deterioration, which would need emergency room care or hospital admission."
+
+If ADHD, weight, obesity, or strep throat discussed:
+"PCMH Reminder"
+
+## Few-Shot Examples
+
+Acute Otitis Media
+- Amoxicillin
+- Tylenol, Motrin, and emphasis on hydration
+- Return precautions include worsening fever, pain, or failure to improve
+- Follow-Up: PRN
+
+ADHD, combined
+- Concerta 18mg increased to Concerta 27mg PO daily
+- Counseling referral placed today
+- Follow-Up: 3 months
+
+Fever
+- Differential includes Kawasaki disease, MIS-C, RMSF
+- CBC, CMP, ESR, CRP, and UA
+- Chest XR
+- 1L NS bolus, IVIG
+- Tylenol, Motrin, Zofran
+- If decrease in BP, then will give another 1L NS bolus and consider ICU
+- Vitals q4hr, call if change in rash
+
+Well Child Check
+- Growing and developing well
+- Anticipatory guidance discussed
+- All questions addressed
+- Follow up: 1 year/PRN
+
+Abnormal Well Child Check
+- Growing well
+- Speech delay noted, will refer for speech therapy and audiology
+- Anticipatory guidance discussed
+- All questions addressed
+- Follow up: 1 year/PRN
+
+Rash
+- Differential includes ringworm, pityriasis rosea, and scabies
+- Ketoconazole
+- Zyrtec, atarax for itching and sleep
+- Return precautions include worsening rash, worsening itch, and failure to improve
+- If spreads further or fails to improve with ketoconazole may consider permethrin
+- Follow-Up: PRN
+`;
 
   const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}`;
 
