@@ -218,6 +218,7 @@ Diagnosis or Problem Name
 
 RULES:
 - Use telegraphic style: short, direct phrases, no full sentences, no unnecessary words
+- Do not label problems with diagnosis or problem, just list the diagnosis or problem
 - Only include bullet points for information actually mentioned in the dictation
 - Do NOT add bullets for categories not mentioned
 - List diagnoses in the order they appear in the dictation
