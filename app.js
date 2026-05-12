@@ -176,12 +176,20 @@ function updateTimer() {
   document.getElementById("timerDisplay").textContent = `${m}:${s}`;
 }
 
-// ─── Boilerplate Post-Processor ───────────────────────────────────────────
-// The LLM emits trigger tags (e.g. [BOILERPLATE:WCC]) instead of trying to
-// reproduce exact multi-sentence blocks. This layer replaces each tag with
-// its guaranteed-correct boilerplate text after streaming completes.
-// To update boilerplate text, edit ONLY this object — no prompt changes needed.
+// ─── Post-Processors ──────────────────────────────────────────────────────
 
+// 1. Strip <think>...</think> blocks that Qwen3 may emit despite /no_think.
+//    Handles multiline blocks and malformed unclosed tags defensively.
+function stripThinkTags(raw) {
+  return raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<think>[\s\S]*/gi, "")   // unclosed tag: drop everything after it
+    .trim();
+}
+
+// 2. Replace [BOILERPLATE:KEY] tags with guaranteed-correct boilerplate text.
+//    To update boilerplate, edit ONLY the BOILERPLATE object below.
+//    Unknown keys are silently removed so stray tags never reach the output.
 const BOILERPLATE = {
   WCC:
     "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. " +
@@ -216,15 +224,18 @@ const BOILERPLATE = {
   PCMH: "PCMH Reminder"
 };
 
-// Replaces [BOILERPLATE:KEY] tags emitted by the LLM with exact boilerplate text.
-// Unknown keys are removed silently so stray tags never appear in the output.
-// Each resolved block is surrounded by blank lines for correct note formatting.
 function applyBoilerplate(raw) {
   return raw.replace(/\[BOILERPLATE:([A-Z_]+)\]/g, (match, key) => {
     const text = BOILERPLATE[key];
     if (!text) return "";
     return "\n" + text + "\n";
   });
+}
+
+// Master post-process pipeline — order matters: strip think tags first,
+// then inject boilerplate so tags inside think blocks can't accidentally fire.
+function postProcess(raw) {
+  return applyBoilerplate(stripThinkTags(raw));
 }
 
 // ─── Process Note ─────────────────────────────────────────────────────────
@@ -283,7 +294,9 @@ Separate each problem with one blank line.
 - Preserve clinician wording when reasonable
 - Keep diagnoses in order mentioned
 - Do not create empty categories or placeholder bullets
-- Medication names and doses must match dictation exactly
+- Medication names and doses must match dictation exactly — omit dose if not stated
+- Use the explicit diagnosis or condition name as the heading, not presenting symptoms
+- If the clinician states a diagnosis, always prefer it over symptom descriptors as the heading
 
 # FORMATTING RULES
 
@@ -314,6 +327,8 @@ Multiple tags may apply. Each tag goes on its own line after the last problem bl
 
 # EXAMPLES
 
+Dictation: "patient has acute otitis media, plan to treat with amoxicillin 90mg per kg per day divided twice daily, also tylenol motrin and hydration, return precautions for worsening fever or pain, follow up as needed"
+
 Acute Otitis Media
 - Amoxicillin 90mg/kg/day divided BID
 - Tylenol, Motrin, hydration
@@ -322,11 +337,31 @@ Acute Otitis Media
 [BOILERPLATE:ILLNESS]
 [BOILERPLATE:OTITIS]
 
+---
+
+Dictation: "patient presenting with cough and fever, exam with right lower lobe crackles, diagnosis is community acquired pneumonia, treating with amoxicillin, also supportive care with tylenol motrin and fluids, return precautions for increased work of breathing, follow up as needed"
+
+Community-Acquired Pneumonia, right lower lobe
+- Amoxicillin
+- Tylenol, Motrin, fluids
+- Return precautions include increased work of breathing
+- Follow-Up: PRN
+[BOILERPLATE:ILLNESS]
+[BOILERPLATE:RESP]
+
+---
+
+Dictation: "ADHD combined type, increasing concerta from 18 to 27mg daily, placing counseling referral, follow up in three months"
+
 ADHD, combined
 - Concerta increased from 18mg to 27mg PO daily
 - Counseling referral placed
 - Follow-Up: 3 months
 [BOILERPLATE:PCMH]
+
+---
+
+Dictation: "high fever one week, concerned for kawasaki or MIS-C or RMSF, ordering CBC CMP ESR CRP UA and chest xray, giving NS bolus and IVIG, tylenol motrin zofran, if blood pressure drops repeat bolus and consider ICU, vitals every four hours, return precautions for worsening fever new rash or change in mental status, follow up tomorrow or sooner"
 
 Fever
 - Differential includes Kawasaki disease, MIS-C, RMSF
@@ -341,12 +376,20 @@ Fever
 [BOILERPLATE:ILLNESS]
 [BOILERPLATE:DEHYDRATION]
 
+---
+
+Dictation: "well child check, growing and developing well, anticipatory guidance discussed, all questions addressed, follow up in one year"
+
 Well Child Check
 - Growing and developing well
 - Anticipatory guidance discussed
 - Questions addressed
 - Follow-Up: 1 year/PRN
 [BOILERPLATE:WCC]
+
+---
+
+Dictation: "rash, differential includes ringworm pityriasis rosea and scabies, treating with ketoconazole cream, zyrtec and atarax for itching and sleep, if spreads or fails to improve may consider permethrin, return precautions for worsening, follow up as needed"
 
 Rash
 - Differential includes ringworm, pityriasis rosea, scabies
@@ -357,7 +400,9 @@ Rash
 - Follow-Up: PRN
 [BOILERPLATE:ILLNESS]`;
 
-  const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}`;
+  // /no_think appended to user prompt — Qwen3's native in-prompt thinking toggle,
+  // more reliable than extra_body in WebLLM context.
+  const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}\n\n/no_think`;
 
   try {
     let rawText = "";
@@ -375,17 +420,16 @@ Rash
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || "";
       rawText += delta;
-      // Show raw stream (tags visible during generation, replaced on completion)
+      // Show live stream; think tags visible during generation but stripped on completion
       streamText.textContent = rawText;
     }
 
-    // Post-process: replace boilerplate tags with exact text
-    const processedText = applyBoilerplate(rawText);
+    // Post-process: strip think tags, then inject boilerplate
+    const processedText = postProcess(rawText);
 
     streaming.style.display = "none";
     renderOutput(processedText);
     btnCopy.style.display = "flex";
-    // Store processed text for clipboard copy
     window._rawOutput = processedText;
 
   } catch (err) {
@@ -415,7 +459,6 @@ function renderOutput(raw) {
     const isBullet = trimmed.startsWith("-") || trimmed.startsWith("•");
 
     if (!isBullet) {
-      // New problem heading or standalone boilerplate paragraph
       const block = document.createElement("div");
       block.className = "problem-block";
       block.style.animationDelay = `${blockCount * 0.08}s`;
