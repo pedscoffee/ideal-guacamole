@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClinicalScribe — AI-Powered Assessment Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="scanline"></div>
+
+  <header>
+    <div class="logo">
+      <span class="logo-cross">✚</span>
+      <span class="logo-text">ClinicalScribe</span>
+      <span class="logo-tag">AI-Assisted A&P Notes</span>
+    </div>
+    <div class="header-right">
+      <div class="model-status" id="modelStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Loading model…</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="workspace">
+
+      <!-- LEFT: Input Panel -->
+      <section class="panel panel-input">
+        <div class="panel-header">
+          <span class="panel-label">INPUT</span>
+          <h2>Assessment & Plan</h2>
+        </div>
+
+        <div class="input-mode-tabs">
+          <button class="tab-btn active" id="tabMic" onclick="switchTab('mic')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            Voice
+          </button>
+          <button class="tab-btn" id="tabText" onclick="switchTab('text')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Text
+          </button>
+        </div>
+
+        <!-- MIC TAB -->
+        <div class="tab-content" id="micTab">
+          <div class="mic-area">
+            <div class="mic-visualizer" id="micVisualizer">
+              <div class="mic-ring mic-ring-1"></div>
+              <div class="mic-ring mic-ring-2"></div>
+              <div class="mic-ring mic-ring-3"></div>
+              <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+            </div>
+            <p class="mic-hint" id="micHint">Click to begin recording</p>
+            <div class="recording-timer" id="recordingTimer" style="display:none">
+              <span class="rec-dot"></span>
+              <span id="timerDisplay">00:00</span>
+            </div>
+          </div>
+
+          <div class="transcript-box" id="transcriptBox">
+            <div class="transcript-label">Live Transcript</div>
+            <div class="transcript-text" id="transcriptText"><span class="placeholder">Your words will appear here as you speak…</span></div>
+          </div>
+        </div>
+
+        <!-- TEXT TAB -->
+        <div class="tab-content hidden" id="textTab">
+          <div class="text-input-area">
+            <label for="textInput">Paste or type your assessment &amp; plan dictation:</label>
+            <textarea id="textInput" placeholder="e.g. Patient has acute otitis media, we will start amoxicillin. For pain and fever give Tylenol and Motrin and encourage fluids. Return precautions for worsening fever, pain, or if not improving. Follow up PRN..."></textarea>
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn-process" id="btnProcess" onclick="processNote()" disabled>
+            <span class="btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </span>
+            Generate Notes
+          </button>
+          <button class="btn-clear" onclick="clearAll()">Clear</button>
+        </div>
+      </section>
+
+      <!-- RIGHT: Output Panel -->
+      <section class="panel panel-output">
+        <div class="panel-header">
+          <span class="panel-label">OUTPUT</span>
+          <h2>Structured Notes</h2>
+          <button class="btn-copy" id="btnCopy" onclick="copyOutput()" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          </button>
+        </div>
+
+        <div class="output-area" id="outputArea">
+          <div class="output-empty" id="outputEmpty">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <p>Structured notes will appear here after processing</p>
+          </div>
+          <div class="output-content" id="outputContent" style="display:none"></div>
+          <div class="output-streaming" id="outputStreaming" style="display:none">
+            <div class="thinking-label">
+              <span class="think-dot"></span>
+              Generating notes…
+            </div>
+            <div class="stream-text" id="streamText"></div>
+          </div>
+        </div>
+
+        <div class="progress-bar-wrap" id="progressWrap" style="display:none">
+          <div class="progress-bar" id="progressBar"></div>
+          <span class="progress-label" id="progressLabel">Loading model…</span>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer>
+    <span>ClinicalScribe runs entirely in your browser — no data leaves your device.</span>
+    <span class="footer-sep">|</span>
+    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank">WebLLM</a> &amp; <a href="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct" target="_blank">Qwen2.5</a></span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
