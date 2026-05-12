@@ -176,6 +176,57 @@ function updateTimer() {
   document.getElementById("timerDisplay").textContent = `${m}:${s}`;
 }
 
+// ─── Boilerplate Post-Processor ───────────────────────────────────────────
+// The LLM emits trigger tags (e.g. [BOILERPLATE:WCC]) instead of trying to
+// reproduce exact multi-sentence blocks. This layer replaces each tag with
+// its guaranteed-correct boilerplate text after streaming completes.
+// To update boilerplate text, edit ONLY this object — no prompt changes needed.
+
+const BOILERPLATE = {
+  WCC:
+    "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. " +
+    "Screening questions, past medical history, past social history, medications, and growth chart reviewed. " +
+    "Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed.",
+
+  ILLNESS:
+    "Recommended supportive care with OTC medications as needed. " +
+    "Return precautions given including increasing pain, worsening fever, dehydration, new symptoms, " +
+    "prolonged symptoms, worsening symptoms, and other concerns. " +
+    "Caregiver expressed understanding and agreement with treatment plan.",
+
+  INJURY:
+    "Recommended supportive care with Tylenol, Motrin, rest, ice, compression, elevation, and gradual " +
+    "return to activity as appropriate. " +
+    "Return precautions given including increasing pain, swelling, or failure to improve.",
+
+  OTITIS:
+    "Risk of untreated otitis media includes persistent pain and fever, hearing loss, and mastoiditis.",
+
+  STREP:
+    "Risk of untreated strep throat includes rheumatic fever and peritonsillar abscess. " +
+    "This problem is moderate risk due to pending lab results which may necessitate further pharmacologic management.",
+
+  DEHYDRATION:
+    "Patient is at risk for dehydration, which would warrant emergency room care or admission for IV fluids.",
+
+  RESP:
+    "Patient is at risk for worsening respiratory distress and clinical deterioration, " +
+    "which would need emergency room care or hospital admission.",
+
+  PCMH: "PCMH Reminder"
+};
+
+// Replaces [BOILERPLATE:KEY] tags emitted by the LLM with exact boilerplate text.
+// Unknown keys are removed silently so stray tags never appear in the output.
+// Each resolved block is surrounded by blank lines for correct note formatting.
+function applyBoilerplate(raw) {
+  return raw.replace(/\[BOILERPLATE:([A-Z_]+)\]/g, (match, key) => {
+    const text = BOILERPLATE[key];
+    if (!text) return "";
+    return "\n" + text + "\n";
+  });
+}
+
 // ─── Process Note ─────────────────────────────────────────────────────────
 window.processNote = async function() {
   if (!isModelReady || !engine) return;
@@ -245,46 +296,37 @@ Separate each problem with one blank line.
 - Follow-up format:
   Follow-Up: ...
 
-# CONDITIONAL INSERTIONS
+# BOILERPLATE TAGS
 
-Insert the following boilerplate text exactly when the relevant clinical condition is detected. Add a blank line before and after each inserted block. Place all boilerplate after all problem blocks.
+After all problem blocks, emit the appropriate tag(s) on their own line when the condition is present.
+Do not write the boilerplate text yourself — emit only the tag exactly as shown.
 
-If well child check or health maintenance discussed:
-"All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. Screening questions, past medical history, past social history, medications, and growth chart reviewed. Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed."
+- Well child check or health maintenance discussed → [BOILERPLATE:WCC]
+- Any illness (infection, virus, fever, etc.) discussed → [BOILERPLATE:ILLNESS]
+- Any injury discussed → [BOILERPLATE:INJURY]
+- Ear infection (otitis media) discussed → [BOILERPLATE:OTITIS]
+- Strep throat or rapid strep test discussed → [BOILERPLATE:STREP]
+- Dehydration, vomiting, diarrhea, or decreased urination discussed → [BOILERPLATE:DEHYDRATION]
+- Trouble breathing, wheezing, or respiratory distress discussed → [BOILERPLATE:RESP]
+- ADHD, weight concern, obesity, or strep throat discussed → [BOILERPLATE:PCMH]
 
-If any illness discussed:
-"Recommended supportive care with OTC medications as needed. Return precautions given including increasing pain, worsening fever, dehydration, new symptoms, prolonged symptoms, worsening symptoms, and other concerns. Caregiver expressed understanding and agreement with treatment plan."
-
-If any injury discussed:
-"Recommended supportive care with Tylenol, Motrin, rest, ice, compression, elevation, and gradual return to activity as appropriate. Return precautions given including increasing pain, swelling, or failure to improve."
-
-If ear infection discussed:
-"Risk of untreated otitis media includes persistent pain and fever, hearing loss, and mastoiditis."
-
-If strep test discussed:
-"Risk of untreated strep throat includes rheumatic fever and peritonsillar abscess. This problem is moderate risk due to pending lab results which may necessitate further pharmacologic management."
-
-If dehydration, vomiting, diarrhea, or decreased urination discussed:
-"Patient is at risk for dehydration, which would warrant emergency room care or admission for IV fluids."
-
-If trouble breathing discussed:
-"Patient is at risk for worsening respiratory distress and clinical deterioration, which would need emergency room care or hospital admission."
-
-If ADHD, weight, obesity, or strep throat discussed:
-"PCMH Reminder"
+Multiple tags may apply. Each tag goes on its own line after the last problem block.
 
 # EXAMPLES
 
 Acute Otitis Media
-- Amoxicillin
+- Amoxicillin 90mg/kg/day divided BID
 - Tylenol, Motrin, hydration
 - Return precautions include worsening fever, pain, failure to improve
 - Follow-Up: PRN
+[BOILERPLATE:ILLNESS]
+[BOILERPLATE:OTITIS]
 
 ADHD, combined
 - Concerta increased from 18mg to 27mg PO daily
 - Counseling referral placed
 - Follow-Up: 3 months
+[BOILERPLATE:PCMH]
 
 Fever
 - Differential includes Kawasaki disease, MIS-C, RMSF
@@ -296,19 +338,15 @@ Fever
 - Vitals q4hr
 - Return precautions include worsening fever, new rash, change in mental status
 - Follow-Up: next day or sooner PRN
+[BOILERPLATE:ILLNESS]
+[BOILERPLATE:DEHYDRATION]
 
 Well Child Check
 - Growing and developing well
 - Anticipatory guidance discussed
 - Questions addressed
 - Follow-Up: 1 year/PRN
-
-Abnormal Well Child Check
-- Growing well
-- Speech delay noted, referral placed for speech therapy and audiology
-- Anticipatory guidance discussed
-- Questions addressed
-- Follow-Up: 1 year/PRN
+[BOILERPLATE:WCC]
 
 Rash
 - Differential includes ringworm, pityriasis rosea, scabies
@@ -316,12 +354,13 @@ Rash
 - Zyrtec, Atarax for itching and sleep
 - If spreads or fails to improve with ketoconazole, consider permethrin
 - Return precautions include worsening rash, worsening itch, failure to improve
-- Follow-Up: PRN`;
+- Follow-Up: PRN
+[BOILERPLATE:ILLNESS]`;
 
   const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}`;
 
   try {
-    let fullText = "";
+    let rawText = "";
     const stream = await engine.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
@@ -335,14 +374,19 @@ Rash
 
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || "";
-      fullText += delta;
-      streamText.textContent = fullText;
+      rawText += delta;
+      // Show raw stream (tags visible during generation, replaced on completion)
+      streamText.textContent = rawText;
     }
 
+    // Post-process: replace boilerplate tags with exact text
+    const processedText = applyBoilerplate(rawText);
+
     streaming.style.display = "none";
-    renderOutput(fullText);
+    renderOutput(processedText);
     btnCopy.style.display = "flex";
-    window._rawOutput = fullText;
+    // Store processed text for clipboard copy
+    window._rawOutput = processedText;
 
   } catch (err) {
     console.error("Generation error:", err);
@@ -369,7 +413,9 @@ function renderOutput(raw) {
     if (!trimmed) continue;
 
     const isBullet = trimmed.startsWith("-") || trimmed.startsWith("•");
-    if (!isBullet && trimmed.length > 0) {
+
+    if (!isBullet) {
+      // New problem heading or standalone boilerplate paragraph
       const block = document.createElement("div");
       block.className = "problem-block";
       block.style.animationDelay = `${blockCount * 0.08}s`;
