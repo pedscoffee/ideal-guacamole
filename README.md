@@ -1,5 +1,8 @@
 # ClinicalScribe
 
+
+*This project is in early development.  Do not use.*
+
 **AI-powered Assessment & Plan documentation tool that runs entirely in your browser.**
 
 Dictate or type your clinical assessment and plan — ClinicalScribe converts it into concise, telegraphic structured notes per problem.
