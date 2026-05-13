@@ -2,67 +2,35 @@
 // WebLLM + Web Speech API for clinical A&P note generation
 
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
-import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.1.2/dist/transformers.min.js";
-
-// We use the Hub for model weights, no local node environment
-env.allowLocalModels = false;
 
 // ─── State ────────────────────────────────────────────────────────────────
 let engine = null;
-let transcriber = null;
-let isLLMReady = false;
-let isWhisperReady = false;
 let isModelReady = false;
 let isRecording = false;
-let mediaRecorder = null;
-let audioChunks = [];
+let recognition = null;
 let transcript = "";
 let timerInterval = null;
 let timerSeconds = 0;
 let currentTab = "mic";
 
-function checkModelsReady() {
-  if (isLLMReady && isWhisperReady) {
-    isModelReady = true;
-    setStatus("ready", "Models ready");
-    showProgress(false);
-    updateProcessBtn();
-  }
-}
-
 // ─── Model Setup ──────────────────────────────────────────────────────────
 const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 
 async function initModel() {
-  setStatus("loading", "Initializing models…");
-  showProgress(true, "Downloading models (LLM ~2.3GB, Whisper ~75MB)…", 0);
-
-  // Initialize Whisper
-  pipeline("automatic-speech-recognition", "Xenova/whisper-tiny.en", {
-    device: "wasm",
-    progress_callback: (progress) => {
-      if (progress.status === 'progress' && !isLLMReady) {
-         showProgress(true, `Loading Whisper…`, Math.round(progress.progress || 0));
-      }
-    }
-  }).then(t => {
-    transcriber = t;
-    isWhisperReady = true;
-    checkModelsReady();
-  }).catch(err => {
-    console.error("Whisper init failed:", err);
-    showError("Failed to load Whisper model.");
-  });
+  setStatus("loading", "Initializing model…");
+  showProgress(true, "Downloading model weights (first load ~2.3GB, cached after)…", 0);
 
   try {
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: (progress) => {
         const pct = Math.round((progress.progress || 0) * 100);
-        showProgress(true, progress.text || "Loading LLM…", pct);
+        showProgress(true, progress.text || "Loading…", pct);
       }
     });
-    isLLMReady = true;
-    checkModelsReady();
+    isModelReady = true;
+    setStatus("ready", "Model ready");
+    showProgress(false);
+    updateProcessBtn();
   } catch (err) {
     console.error("Model init failed:", err);
     setStatus("error", "Model failed to load");
@@ -122,85 +90,83 @@ window.switchTab = function(tab) {
 };
 
 // ─── Speech Recognition ───────────────────────────────────────────────────
-async function setupAudioRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
-    
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
-    };
-    
-    mediaRecorder.onstop = async () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      audioChunks = [];
-      await transcribeAudio(audioBlob);
-    };
-  } catch (err) {
-    console.error("Microphone access denied:", err);
-    document.getElementById("micHint").textContent = "Microphone access denied. Please check permissions.";
+function setupSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById("micHint").textContent = "Speech recognition not supported in this browser. Please use the Text tab.";
     document.getElementById("micBtn").disabled = true;
+    return;
   }
-}
 
-async function transcribeAudio(blob) {
-  if (!transcriber) return;
-  document.getElementById("transcriptText").innerHTML = '<span class="placeholder" style="color:var(--primary)">Transcribing securely in browser...</span>';
-  
-  try {
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    const audioData = audioBuffer.getChannelData(0);
-    
-    const result = await transcriber(audioData);
-    transcript = result.text.trim();
-    document.getElementById("transcriptText").textContent = transcript || "No speech detected.";
-    document.getElementById("micHint").textContent = "Click to begin recording";
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+
+  let finalTranscript = "";
+
+  recognition.onresult = (event) => {
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) {
+        finalTranscript += result[0].transcript + " ";
+      } else {
+        interim += result[0].transcript;
+      }
+    }
+    transcript = finalTranscript;
+    const display = finalTranscript + (interim ? `<em style="color:var(--text-dim)">${interim}</em>` : "");
+    document.getElementById("transcriptText").innerHTML = display || '<span class="placeholder">Your words will appear here as you speak…</span>';
     updateProcessBtn();
-  } catch (err) {
-    console.error("Transcription error:", err);
-    document.getElementById("transcriptText").innerHTML = '<span class="error-msg">Failed to transcribe audio.</span>';
-    document.getElementById("micHint").textContent = "Click to begin recording";
-  }
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error !== "aborted") {
+      console.warn("Speech error:", e.error);
+      stopRecording();
+    }
+  };
+
+  recognition.onend = () => {
+    if (isRecording) {
+      try { recognition.start(); } catch (_) {}
+    }
+  };
 }
 
-window.toggleRecording = async function() {
+window.toggleRecording = function() {
   if (isRecording) {
     stopRecording();
   } else {
-    await startRecording();
+    startRecording();
   }
 };
 
-async function startRecording() {
-  if (!mediaRecorder) {
-    await setupAudioRecording();
-    if (!mediaRecorder) return;
+function startRecording() {
+  if (!recognition) {
+    setupSpeechRecognition();
+    if (!recognition) return;
   }
-  audioChunks = [];
-  mediaRecorder.start();
   isRecording = true;
   document.getElementById("micVisualizer").classList.add("recording");
   document.getElementById("micBtn").style.cssText = "";
   document.getElementById("micHint").textContent = "Listening… speak your assessment and plan";
   document.getElementById("recordingTimer").style.display = "flex";
-  document.getElementById("transcriptText").innerHTML = '<span class="placeholder">Recording in progress... Processing starts when you stop.</span>';
   timerSeconds = 0;
   updateTimer();
   timerInterval = setInterval(updateTimer, 1000);
+  try { recognition.start(); } catch (_) {}
 }
 
 function stopRecording() {
   isRecording = false;
-  mediaRecorder.stop();
-  
   document.getElementById("micVisualizer").classList.remove("recording");
-  document.getElementById("micHint").textContent = "Processing audio locally...";
+  document.getElementById("micHint").textContent = "Click to begin recording";
   document.getElementById("recordingTimer").style.display = "none";
   clearInterval(timerInterval);
+  try { recognition.stop(); } catch (_) {}
+  updateProcessBtn();
 }
 
 function updateTimer() {
@@ -577,12 +543,7 @@ window.clearAll = function() {
   area.appendChild(document.getElementById("outputStreaming"));
 
   window._rawOutput = "";
-  if (isRecording) {
-    const prevOnStop = mediaRecorder.onstop;
-    mediaRecorder.onstop = null; // Prevent transcription
-    stopRecording();
-    mediaRecorder.onstop = prevOnStop; // Restore
-  }
+  if (isRecording) stopRecording();
   updateProcessBtn();
 };
 
@@ -590,5 +551,5 @@ window.clearAll = function() {
 document.getElementById("textInput").addEventListener("input", updateProcessBtn);
 
 // ─── Boot ─────────────────────────────────────────────────────────────────
-// setupAudioRecording(); // Called on first click to ensure user interaction for permissions
+setupSpeechRecognition();
 initModel();
