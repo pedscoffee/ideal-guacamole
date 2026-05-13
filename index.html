@@ -63,16 +63,23 @@
 
         <!-- MIC TAB -->
         <div class="tab-content" id="micTab">
+
+          <!-- Whisper local model status -->
+          <div class="model-status whisper-status" id="whisperStatus" style="margin-bottom:0.5rem;font-size:0.75rem;">
+            <span class="status-dot loading" id="whisperDot"></span>
+            <span id="whisperText">Loading Whisper…</span>
+          </div>
+
           <div class="mic-area">
             <div class="mic-visualizer" id="micVisualizer">
               <div class="mic-ring mic-ring-1"></div>
               <div class="mic-ring mic-ring-2"></div>
               <div class="mic-ring mic-ring-3"></div>
-              <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
+              <button class="mic-btn" id="micBtn" onclick="toggleRecording()" disabled>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
               </button>
             </div>
-            <p class="mic-hint" id="micHint">Click to begin recording</p>
+            <p class="mic-hint" id="micHint">Loading local Whisper model…</p>
             <div class="recording-timer" id="recordingTimer" style="display:none">
               <span class="rec-dot"></span>
               <span id="timerDisplay">00:00</span>
@@ -80,8 +87,8 @@
           </div>
 
           <div class="transcript-box" id="transcriptBox">
-            <div class="transcript-label">Live Transcript</div>
-            <div class="transcript-text" id="transcriptText"><span class="placeholder">Your words will appear here as you speak…</span></div>
+            <div class="transcript-label">Transcript</div>
+            <div class="transcript-text" id="transcriptText"><span class="placeholder">Your words will appear here after recording…</span></div>
           </div>
         </div>
 
@@ -144,7 +151,7 @@
   <footer>
     <span>Present runs entirely in your browser — no data leaves your device.</span>
     <span class="footer-sep">|</span>
-    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank" rel="noopener noreferrer">WebLLM</a> &amp; <a href="https://huggingface.co/Qwen/Qwen3-4B" target="_blank" rel="noopener noreferrer">Qwen3</a></span>
+    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank" rel="noopener noreferrer">WebLLM</a>, <a href="https://huggingface.co/Qwen/Qwen3-4B" target="_blank" rel="noopener noreferrer">Qwen3</a> &amp; <a href="https://huggingface.co/openai/whisper-small" target="_blank" rel="noopener noreferrer">Whisper</a> (local)</span>
     <span class="footer-sep">|</span>
     <a href="https://github.com/pedscoffee/ideal-guacamole" target="_blank" rel="noopener noreferrer">Open Source</a>
   </footer>
