@@ -199,9 +199,11 @@ async function startRecording() {
 
         setMicHint("Transcribing audio on-device…");
         // Transfer ownership of the buffer for zero-copy
+        // Do NOT use a transfer list — transferring float32.buffer detaches it,
+        // causing "subarray is not a function" in the worker pipeline.
+        // Structured clone (no transfer list) is safe for audio sizes.
         whisperWorker.postMessage(
-          { type: "transcribe", audio: float32, sampleRate: 16000 },
-          [float32.buffer]
+          { type: "transcribe", audio: float32, sampleRate: 16000 }
         );
       } catch (err) {
         console.error("Audio decode error:", err);
