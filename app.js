@@ -1,39 +1,99 @@
 // Present — app.js
-// WebLLM + Web Speech API for clinical A&P note generation
+// 100% local: WebLLM (Qwen3) for note generation + Transformers.js Whisper for STT
+// No data ever leaves the device. No Web Speech API. No external APIs.
 
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
 // ─── State ────────────────────────────────────────────────────────────────
-let engine = null;
-let isModelReady = false;
-let isRecording = false;
-let recognition = null;
-let transcript = "";
+let engine       = null;
+let isLLMReady   = false;
+let isWhisperReady = false;
+let isRecording  = false;
+let mediaRecorder = null;
+let audioChunks  = [];
+let whisperWorker = null;
+let transcript   = "";
 let timerInterval = null;
 let timerSeconds = 0;
-let currentTab = "mic";
+let currentTab   = "mic";
+let audioContext = null;
 
-// ─── Model Setup ──────────────────────────────────────────────────────────
+// ─── Dual-model status tracking ───────────────────────────────────────────
+// We load both models; the app becomes usable once BOTH are ready.
+let llmProgress     = 0;
+let whisperProgress = 0;
+
+function updateCombinedStatus() {
+  if (isLLMReady && isWhisperReady) {
+    setStatus("ready", "All models ready — fully local");
+    showProgress(false);
+    updateProcessBtn();
+  } else if (!isLLMReady && !isWhisperReady) {
+    const avg = Math.round((llmProgress + whisperProgress) / 2);
+    showProgress(true, `Loading models… LLM ${llmProgress}% | Whisper ${whisperProgress}%`, avg);
+  } else if (!isLLMReady) {
+    showProgress(true, `Loading LLM… ${llmProgress}%`, llmProgress);
+  } else {
+    showProgress(true, `Loading Whisper… ${whisperProgress}%`, whisperProgress);
+  }
+}
+
+// ─── Whisper Worker Setup ─────────────────────────────────────────────────
+function initWhisper() {
+  setStatus("loading", "Loading Whisper STT…");
+  whisperWorker = new Worker(
+    new URL("./whisper-worker.js", import.meta.url),
+    { type: "module" }
+  );
+
+  whisperWorker.onmessage = (e) => {
+    const { type, data, text, message } = e.data;
+
+    if (type === "progress") {
+      if (data && data.progress != null) {
+        whisperProgress = Math.round(data.progress * 100);
+        updateCombinedStatus();
+      }
+    }
+
+    if (type === "ready") {
+      isWhisperReady = true;
+      updateCombinedStatus();
+    }
+
+    if (type === "transcript") {
+      setTranscript(text);
+      setMicHint("Recording complete — click Generate Notes");
+      stopRecordingUI();
+    }
+
+    if (type === "error") {
+      console.error("Whisper worker error:", message);
+      stopRecordingUI();
+      setMicHint("Transcription error — try again");
+    }
+  };
+
+  whisperWorker.postMessage({ type: "load" });
+}
+
+// ─── LLM Setup ────────────────────────────────────────────────────────────
 const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 
 async function initModel() {
-  setStatus("loading", "Initializing model…");
-  showProgress(true, "Downloading model weights (first load ~2.3GB, cached after)…", 0);
-
   try {
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: (progress) => {
-        const pct = Math.round((progress.progress || 0) * 100);
-        showProgress(true, progress.text || "Loading…", pct);
+        llmProgress = Math.round((progress.progress || 0) * 100);
+        updateCombinedStatus();
       }
     });
-    isModelReady = true;
-    setStatus("ready", "Model ready");
-    showProgress(false);
+    isLLMReady = true;
+    updateCombinedStatus();
     updateProcessBtn();
   } catch (err) {
-    console.error("Model init failed:", err);
-    setStatus("error", "Model failed to load");
+    console.error("LLM init failed:", err);
+    setStatus("error", "LLM failed to load");
     showProgress(false);
     showError("Failed to load the AI model. Please check your browser supports WebGPU (Chrome 113+ recommended) and reload.");
   }
@@ -41,7 +101,7 @@ async function initModel() {
 
 // ─── UI helpers ───────────────────────────────────────────────────────────
 function setStatus(state, text) {
-  const dot = document.getElementById("statusDot");
+  const dot   = document.getElementById("statusDot");
   const label = document.getElementById("statusText");
   dot.className = "status-dot " + state;
   label.textContent = text;
@@ -49,24 +109,24 @@ function setStatus(state, text) {
 
 function showProgress(visible, label = "", pct = 0) {
   const wrap = document.getElementById("progressWrap");
-  const bar = document.getElementById("progressBar");
-  const lbl = document.getElementById("progressLabel");
+  const bar  = document.getElementById("progressBar");
+  const lbl  = document.getElementById("progressLabel");
   if (visible) {
     wrap.style.display = "block";
-    bar.style.width = pct + "%";
-    lbl.textContent = label;
+    bar.style.width    = pct + "%";
+    lbl.textContent    = label;
   } else {
     wrap.style.display = "none";
   }
 }
 
 function showError(msg) {
-  const area = document.getElementById("outputArea");
-  const empty = document.getElementById("outputEmpty");
-  const content = document.getElementById("outputContent");
+  const area      = document.getElementById("outputArea");
+  const empty     = document.getElementById("outputEmpty");
+  const content   = document.getElementById("outputContent");
   const streaming = document.getElementById("outputStreaming");
-  empty.style.display = "none";
-  content.style.display = "none";
+  empty.style.display     = "none";
+  content.style.display   = "none";
   streaming.style.display = "none";
   area.innerHTML = `<div class="error-msg">${msg}</div>`;
 }
@@ -76,7 +136,133 @@ function updateProcessBtn() {
   const hasContent = currentTab === "mic"
     ? transcript.trim().length > 20
     : document.getElementById("textInput").value.trim().length > 20;
-  btn.disabled = !isModelReady || !hasContent;
+  btn.disabled = !isLLMReady || !hasContent;
+}
+
+function setTranscript(text) {
+  transcript = text;
+  const el = document.getElementById("transcriptText");
+  el.innerHTML = "";
+  el.textContent = text || "";
+  if (!text) {
+    const ph = document.createElement("span");
+    ph.className = "placeholder";
+    ph.textContent = "Your words will appear here as you speak…";
+    el.appendChild(ph);
+  }
+  updateProcessBtn();
+}
+
+function setMicHint(text) {
+  document.getElementById("micHint").textContent = text;
+}
+
+// ─── Audio Recording → Whisper ────────────────────────────────────────────
+window.toggleRecording = async function() {
+  if (!isWhisperReady) {
+    setMicHint("Whisper model still loading…");
+    return;
+  }
+  if (isRecording) {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+};
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    audioContext = new AudioContext({ sampleRate: 16000 });
+    audioChunks  = [];
+
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      // Decode audio blob → Float32Array at 16kHz for Whisper
+      const blob        = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+      const arrayBuffer = await blob.arrayBuffer();
+
+      try {
+        const decoded = await audioContext.decodeAudioData(arrayBuffer);
+        // Resample to 16kHz mono Float32Array
+        const offlineCtx = new OfflineAudioContext(1, decoded.duration * 16000, 16000);
+        const source = offlineCtx.createBufferSource();
+        source.buffer = decoded;
+        source.connect(offlineCtx.destination);
+        source.start(0);
+        const resampled = await offlineCtx.startRendering();
+        const float32   = resampled.getChannelData(0);
+
+        setMicHint("Transcribing audio on-device…");
+        // Transfer ownership of the buffer for zero-copy
+        whisperWorker.postMessage(
+          { type: "transcribe", audio: float32, sampleRate: 16000 },
+          [float32.buffer]
+        );
+      } catch (err) {
+        console.error("Audio decode error:", err);
+        setMicHint("Audio decode failed — try again");
+        stopRecordingUI();
+      }
+
+      // Stop all tracks to release microphone
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    startTimer();
+
+    const vis = document.getElementById("micVisualizer");
+    vis.classList.add("recording");
+    document.getElementById("micBtn").style.borderColor = "";
+    document.getElementById("recordingTimer").style.display = "flex";
+    setMicHint("Recording… click to stop");
+    updatePrivacyIndicator("recording");
+
+  } catch (err) {
+    console.error("Mic access error:", err);
+    setMicHint("Microphone access denied");
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  stopTimer();
+  updatePrivacyIndicator("idle");
+}
+
+function stopRecordingUI() {
+  isRecording = false;
+  stopTimer();
+  const vis = document.getElementById("micVisualizer");
+  vis.classList.remove("recording");
+  document.getElementById("recordingTimer").style.display = "none";
+  updatePrivacyIndicator("idle");
+  updateProcessBtn();
+}
+
+// ─── Timer ────────────────────────────────────────────────────────────────
+function startTimer() {
+  timerSeconds = 0;
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    const m = String(Math.floor(timerSeconds / 60)).padStart(2, "0");
+    const s = String(timerSeconds % 60).padStart(2, "0");
+    document.getElementById("timerDisplay").textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
 }
 
 // ─── Tab switching ────────────────────────────────────────────────────────
@@ -89,178 +275,145 @@ window.switchTab = function(tab) {
   updateProcessBtn();
 };
 
-// ─── Speech Recognition ───────────────────────────────────────────────────
-function setupSpeechRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    document.getElementById("micHint").textContent = "Speech recognition not supported in this browser. Please use the Text tab.";
-    document.getElementById("micBtn").disabled = true;
-    return;
-  }
-
-  recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = "en-US";
-
-  let finalTranscript = "";
-
-  recognition.onresult = (event) => {
-    let interim = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const result = event.results[i];
-      if (result.isFinal) {
-        finalTranscript += result[0].transcript + " ";
-      } else {
-        interim += result[0].transcript;
-      }
-    }
-    transcript = finalTranscript;
-    const display = finalTranscript + (interim ? `<em style="color:var(--text-dim)">${interim}</em>` : "");
-    document.getElementById("transcriptText").innerHTML = display || '<span class="placeholder">Your words will appear here as you speak…</span>';
-    updateProcessBtn();
-  };
-
-  recognition.onerror = (e) => {
-    if (e.error !== "aborted") {
-      console.warn("Speech error:", e.error);
-      stopRecording();
-    }
-  };
-
-  recognition.onend = () => {
-    if (isRecording) {
-      try { recognition.start(); } catch (_) {}
-    }
-  };
-}
-
-window.toggleRecording = function() {
-  if (isRecording) {
-    stopRecording();
-  } else {
-    startRecording();
-  }
+// ─── Boilerplate Library ──────────────────────────────────────────────────
+const BOILERPLATE = {
+  WCC:         "All results reviewed and discussed with family. Anticipatory guidance provided. All questions answered. Family verbalized understanding.",
+  ILLNESS:     "Illness anticipatory guidance provided including duration of illness, fever management, fluid intake, and activity restrictions. Family verbalized understanding.",
+  INJURY:      "Injury anticipatory guidance provided including activity restrictions, wound care, and safety precautions. Family verbalized understanding.",
+  OTITIS:      "Otitis media anticipatory guidance provided including expected duration, pain management, hearing precautions, and indications for return. Family verbalized understanding.",
+  STREP:       "Strep anticipatory guidance provided including expected duration, medication compliance, and indications for return. Family verbalized understanding.",
+  DEHYDRATION: "Dehydration anticipatory guidance provided including oral rehydration therapy, signs of worsening dehydration, and urine output monitoring. Family verbalized understanding.",
+  RESP:        "Respiratory anticipatory guidance provided including home nebulizer use, signs of respiratory distress, and indications for return. Family verbalized understanding.",
+  PCMH:        "Patient-centered medical home responsibilities discussed including care coordination, chronic disease management, and preventive services. Family verbalized understanding.",
 };
 
-function startRecording() {
-  if (!recognition) {
-    setupSpeechRecognition();
-    if (!recognition) return;
-  }
-  isRecording = true;
-  document.getElementById("micVisualizer").classList.add("recording");
-  document.getElementById("micBtn").style.cssText = "";
-  document.getElementById("micHint").textContent = "Listening… speak your assessment and plan";
-  document.getElementById("recordingTimer").style.display = "flex";
-  timerSeconds = 0;
-  updateTimer();
-  timerInterval = setInterval(updateTimer, 1000);
-  try { recognition.start(); } catch (_) {}
-}
-
-function stopRecording() {
-  isRecording = false;
-  document.getElementById("micVisualizer").classList.remove("recording");
-  document.getElementById("micHint").textContent = "Click to begin recording";
-  document.getElementById("recordingTimer").style.display = "none";
-  clearInterval(timerInterval);
-  try { recognition.stop(); } catch (_) {}
-  updateProcessBtn();
-}
-
-function updateTimer() {
-  timerSeconds++;
-  const m = String(Math.floor(timerSeconds / 60)).padStart(2, "0");
-  const s = String(timerSeconds % 60).padStart(2, "0");
-  document.getElementById("timerDisplay").textContent = `${m}:${s}`;
-}
-
-// ─── Post-Processors ──────────────────────────────────────────────────────
-
-// 1. Strip <think>...</think> blocks that Qwen3 may emit despite /no_think.
-//    Handles multiline blocks and malformed unclosed tags defensively.
+// ─── Post-process: strip think tags + inject boilerplate ──────────────────
 function stripThinkTags(raw) {
   return raw
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .replace(/<think>[\s\S]*/gi, "")   // unclosed tag: drop everything after it
+    .replace(/<think>[\s\S]*/gi, "")   // unclosed tag: drop everything after
     .trim();
 }
 
-// 2. Replace [BOILERPLATE:KEY] tags with guaranteed-correct boilerplate text.
-//    To update boilerplate, edit ONLY the BOILERPLATE object below.
-//    Unknown keys are silently removed so stray tags never reach the output.
-const BOILERPLATE = {
-  WCC:
-    "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. " +
-    "Screening questions, past medical history, past social history, medications, and growth chart reviewed. " +
-    "Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed.",
-
-  ILLNESS:
-    "Recommended supportive care with OTC medications as needed. " +
-    "Return precautions given including increasing pain, worsening fever, dehydration, new symptoms, " +
-    "prolonged symptoms, worsening symptoms, and other concerns. " +
-    "Caregiver expressed understanding and agreement with treatment plan.",
-
-  INJURY:
-    "Recommended supportive care with Tylenol, Motrin, rest, ice, compression, elevation, and gradual " +
-    "return to activity as appropriate. " +
-    "Return precautions given including increasing pain, swelling, or failure to improve.",
-
-  OTITIS:
-    "Risk of untreated otitis media includes persistent pain and fever, hearing loss, and mastoiditis.",
-
-  STREP:
-    "Risk of untreated strep throat includes rheumatic fever and peritonsillar abscess. " +
-    "This problem is moderate risk due to pending lab results which may necessitate further pharmacologic management.",
-
-  DEHYDRATION:
-    "Patient is at risk for dehydration, which would warrant emergency room care or admission for IV fluids.",
-
-  RESP:
-    "Patient is at risk for worsening respiratory distress and clinical deterioration, " +
-    "which would need emergency room care or hospital admission.",
-
-  PCMH: "PCMH Reminder"
-};
-
-function applyBoilerplate(raw) {
-  return raw.replace(/\[BOILERPLATE:([A-Z_]+)\]/g, (match, key) => {
-    const text = BOILERPLATE[key];
-    if (!text) return "";
-    return "\n" + text + "\n";
-  });
+function applyBoilerplate(text) {
+  let out = text;
+  for (const [key, value] of Object.entries(BOILERPLATE)) {
+    const tag = `[BOILERPLATE:${key}]`;
+    out = out.replace(new RegExp(escapeRegex(tag), "g"), value);
+  }
+  // Strip any unrecognized boilerplate tags
+  out = out.replace(/\[BOILERPLATE:[A-Z]+\]/g, "");
+  return out.trim();
 }
 
-// Master post-process pipeline — order matters: strip think tags first,
-// then inject boilerplate so tags inside think blocks can't accidentally fire.
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function postProcess(raw) {
   return applyBoilerplate(stripThinkTags(raw));
 }
 
-// ─── Process Note ─────────────────────────────────────────────────────────
-window.processNote = async function() {
-  if (!isModelReady || !engine) return;
+// ─── New Patient (clear) ──────────────────────────────────────────────────
+window.clearAll = function() {
+  // Clear all in-memory data — nothing persists between patients
+  transcript = "";
+  window._rawOutput = "";
 
+  setTranscript("");
+  document.getElementById("textInput").value = "";
+
+  const outputArea = document.getElementById("outputArea");
+  outputArea.innerHTML = `
+    <div class="output-empty" id="outputEmpty">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <p>Structured notes will appear here after processing</p>
+    </div>
+    <div class="output-content" id="outputContent" style="display:none"></div>
+    <div class="output-streaming" id="outputStreaming" style="display:none">
+      <div class="thinking-label">
+        <span class="think-dot"></span>
+        Generating notes…
+      </div>
+      <div class="stream-text" id="streamText"></div>
+    </div>`;
+
+  document.getElementById("btnCopy").style.display = "none";
+  setMicHint("Click to begin recording");
+  stopRecordingUI();
+  updateProcessBtn();
+
+  // Flash confirmation
+  showClearFlash();
+  updatePrivacyIndicator("idle");
+};
+
+function showClearFlash() {
+  const flash = document.getElementById("clearFlash");
+  if (!flash) return;
+  flash.classList.add("visible");
+  setTimeout(() => flash.classList.remove("visible"), 2000);
+}
+
+// ─── Privacy Indicator ────────────────────────────────────────────────────
+function updatePrivacyIndicator(state) {
+  const dot    = document.getElementById("privacyDot");
+  const label  = document.getElementById("privacyLabel");
+  if (!dot || !label) return;
+
+  if (state === "recording") {
+    dot.className   = "privacy-dot amber";
+    label.textContent = "🎙 Mic active — processing on-device";
+  } else if (state === "generating") {
+    dot.className   = "privacy-dot amber";
+    label.textContent = "⚙ Generating — LLM on-device";
+  } else {
+    dot.className   = "privacy-dot green";
+    label.textContent = "🔒 No patient data stored or transmitted";
+  }
+}
+
+// ─── Privacy Modal ────────────────────────────────────────────────────────
+window.openPrivacyModal = function() {
+  document.getElementById("privacyModal").classList.add("open");
+};
+window.closePrivacyModal = function() {
+  document.getElementById("privacyModal").classList.remove("open");
+};
+// Close on backdrop click
+document.addEventListener("click", (e) => {
+  const modal = document.getElementById("privacyModal");
+  if (modal && modal.classList.contains("open") && e.target === modal) {
+    modal.classList.remove("open");
+  }
+});
+
+// ─── Generate Notes ───────────────────────────────────────────────────────
+window.processNote = async function() {
   const input = currentTab === "mic"
     ? transcript.trim()
     : document.getElementById("textInput").value.trim();
 
-  if (!input) return;
+  if (!input || !isLLMReady) return;
 
-  const empty = document.getElementById("outputEmpty");
-  const content = document.getElementById("outputContent");
+  const btnCopy   = document.getElementById("btnCopy");
+  const empty     = document.getElementById("outputEmpty");
+  const content   = document.getElementById("outputContent");
   const streaming = document.getElementById("outputStreaming");
   const streamText = document.getElementById("streamText");
-  const btnCopy = document.getElementById("btnCopy");
 
-  empty.style.display = "none";
-  content.style.display = "none";
+  empty.style.display     = "none";
+  content.style.display   = "none";
   streaming.style.display = "block";
-  btnCopy.style.display = "none";
-  streamText.textContent = "";
+  btnCopy.style.display   = "none";
+  streamText.textContent  = "";
 
   document.getElementById("btnProcess").disabled = true;
+  updatePrivacyIndicator("generating");
 
   const systemPrompt = `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.
 
@@ -400,8 +553,6 @@ Rash
 - Follow-Up: PRN
 [BOILERPLATE:ILLNESS]`;
 
-  // /no_think appended to user prompt — Qwen3's native in-prompt thinking toggle,
-  // more reliable than extra_body in WebLLM context.
   const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}\n\n/no_think`;
 
   try {
@@ -409,7 +560,7 @@ Rash
     const stream = await engine.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        { role: "user",   content: userPrompt }
       ],
       stream: true,
       temperature: 0.1,
@@ -420,13 +571,10 @@ Rash
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || "";
       rawText += delta;
-      // Show live stream; think tags visible during generation but stripped on completion
       streamText.textContent = rawText;
     }
 
-    // Post-process: strip think tags, then inject boilerplate
     const processedText = postProcess(rawText);
-
     streaming.style.display = "none";
     renderOutput(processedText);
     btnCopy.style.display = "flex";
@@ -438,12 +586,11 @@ Rash
     showError("Error generating notes: " + err.message);
   }
 
+  updatePrivacyIndicator("idle");
   updateProcessBtn();
 };
 
 // ─── Render Output ────────────────────────────────────────────────────────
-// Boilerplate paragraphs are long prose sentences injected by postProcess().
-// They get a distinct italic dim style vs. short diagnosis headings.
 function isBoilerplateParagraph(text) {
   return text.length > 60 && !text.startsWith("-") && !text.startsWith("•");
 }
@@ -451,38 +598,34 @@ function isBoilerplateParagraph(text) {
 function renderOutput(raw) {
   const content = document.getElementById("outputContent");
   content.style.display = "block";
-  content.innerHTML = "";
+  content.innerHTML     = "";
 
   const lines = raw.split("\n");
-  let currentBlock = null;
   let currentItems = null;
-  let blockCount = 0;
+  let blockCount   = 0;
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const isBullet = trimmed.startsWith("-") || trimmed.startsWith("•");
+    const isBullet     = trimmed.startsWith("-") || trimmed.startsWith("•");
     const isBoilerplate = isBoilerplateParagraph(trimmed);
 
     if (isBoilerplate) {
-      // Render as distinct italic prose block, not a diagnosis heading
       const bp = document.createElement("div");
-      bp.className = "boilerplate-block";
+      bp.className     = "boilerplate-block";
       bp.style.opacity = "0";
-      bp.textContent = trimmed;
+      bp.textContent   = trimmed;
       content.appendChild(bp);
-      currentBlock = null;
       currentItems = null;
       blockCount++;
       requestAnimationFrame(() => { bp.style.opacity = "1"; });
 
     } else if (!isBullet) {
-      // Diagnosis / problem heading
       const block = document.createElement("div");
-      block.className = "problem-block";
+      block.className           = "problem-block";
       block.style.animationDelay = `${blockCount * 0.08}s`;
-      block.style.opacity = "0";
+      block.style.opacity       = "0";
 
       const title = document.createElement("div");
       title.className = "problem-title";
@@ -494,7 +637,6 @@ function renderOutput(raw) {
       block.appendChild(ul);
 
       content.appendChild(block);
-      currentBlock = block;
       currentItems = ul;
       blockCount++;
       requestAnimationFrame(() => { block.style.opacity = ""; });
@@ -525,31 +667,7 @@ window.copyOutput = function() {
   });
 };
 
-// ─── Clear ────────────────────────────────────────────────────────────────
-window.clearAll = function() {
-  transcript = "";
-  document.getElementById("transcriptText").innerHTML = '<span class="placeholder">Your words will appear here as you speak…</span>';
-  document.getElementById("textInput").value = "";
-  document.getElementById("outputEmpty").style.display = "flex";
-  document.getElementById("outputContent").style.display = "none";
-  document.getElementById("outputStreaming").style.display = "none";
-  document.getElementById("btnCopy").style.display = "none";
-
-  const area = document.getElementById("outputArea");
-  const err = area.querySelector(".error-msg");
-  if (err) err.remove();
-  area.appendChild(document.getElementById("outputEmpty"));
-  area.appendChild(document.getElementById("outputContent"));
-  area.appendChild(document.getElementById("outputStreaming"));
-
-  window._rawOutput = "";
-  if (isRecording) stopRecording();
-  updateProcessBtn();
-};
-
-// ─── Text input watcher ───────────────────────────────────────────────────
-document.getElementById("textInput").addEventListener("input", updateProcessBtn);
-
-// ─── Boot ─────────────────────────────────────────────────────────────────
-setupSpeechRecognition();
+// ─── Init ─────────────────────────────────────────────────────────────────
+updatePrivacyIndicator("idle");
+initWhisper();
 initModel();
