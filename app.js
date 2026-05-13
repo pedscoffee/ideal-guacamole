@@ -105,8 +105,9 @@ function showError(msg) {
 
 function updateProcessBtn() {
   const btn = document.getElementById("btnProcess");
+  // For mic tab, read from the textarea value (which may have been edited)
   const hasContent = currentTab === "mic"
-    ? transcript.trim().length > 20
+    ? (document.getElementById("transcriptText").value || transcript).trim().length > 20
     : document.getElementById("textInput").value.trim().length > 20;
   btn.disabled = !isModelReady || !hasContent;
 }
@@ -147,7 +148,12 @@ async function setupAudioRecording() {
 
 async function transcribeAudio(blob) {
   if (!transcriber) return;
-  document.getElementById("transcriptText").innerHTML = '<span class="placeholder" style="color:var(--primary)">Transcribing securely in browser...</span>';
+  const ta = document.getElementById("transcriptText");
+  ta.value = "";
+  ta.placeholder = "Transcribing securely in browser…";
+  ta.readOnly = true;
+  ta.classList.remove("is-editable");
+  document.getElementById("transcriptLabel").textContent = "Transcript";
   
   try {
     const arrayBuffer = await blob.arrayBuffer();
@@ -157,12 +163,30 @@ async function transcribeAudio(blob) {
     
     const result = await transcriber(audioData);
     transcript = result.text.trim();
-    document.getElementById("transcriptText").textContent = transcript || "No speech detected.";
+
+    if (transcript) {
+      ta.value = transcript;
+      ta.readOnly = false;
+      ta.classList.add("is-editable");
+      document.getElementById("transcriptLabel").textContent = "Transcript — editable";
+      // Keep transcript state in sync as user edits
+      ta.oninput = () => {
+        transcript = ta.value;
+        updateProcessBtn();
+      };
+    } else {
+      ta.value = "";
+      ta.placeholder = "No speech detected.";
+    }
+
     document.getElementById("micHint").textContent = "Click to begin recording";
     updateProcessBtn();
   } catch (err) {
     console.error("Transcription error:", err);
-    document.getElementById("transcriptText").innerHTML = '<span class="error-msg">Failed to transcribe audio.</span>';
+    ta.value = "";
+    ta.placeholder = "Failed to transcribe audio.";
+    ta.readOnly = true;
+    ta.classList.remove("is-editable");
     document.getElementById("micHint").textContent = "Click to begin recording";
   }
 }
@@ -187,7 +211,12 @@ async function startRecording() {
   document.getElementById("micBtn").style.cssText = "";
   document.getElementById("micHint").textContent = "Listening… speak your assessment and plan";
   document.getElementById("recordingTimer").style.display = "flex";
-  document.getElementById("transcriptText").innerHTML = '<span class="placeholder">Recording in progress... Processing starts when you stop.</span>';
+  const ta = document.getElementById("transcriptText");
+  ta.value = "";
+  ta.placeholder = "Recording in progress… Processing starts when you stop.";
+  ta.readOnly = true;
+  ta.classList.remove("is-editable");
+  document.getElementById("transcriptLabel").textContent = "Transcript";
   timerSeconds = 0;
   updateTimer();
   timerInterval = setInterval(updateTimer, 1000);
@@ -272,12 +301,53 @@ function postProcess(raw) {
   return applyBoilerplate(stripThinkTags(raw));
 }
 
+// ─── Autocopy helper ──────────────────────────────────────────────────────
+function autoCopyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showAutocopyToast("✓ Auto-copied to clipboard");
+  }).catch(() => {
+    // Silently ignore — user can still copy manually
+  });
+}
+
+function showAutocopyToast(msg) {
+  const toast = document.getElementById("autocopyToast");
+  toast.textContent = msg;
+  toast.classList.add("visible");
+  setTimeout(() => toast.classList.remove("visible"), 2500);
+}
+
+// ─── Get current output text (handles edits made to contenteditable) ──────
+function getCurrentOutputText() {
+  const content = document.getElementById("outputContent");
+  // Walk the rendered DOM to reconstruct plain text, mirroring renderOutput structure
+  const lines = [];
+  for (const node of content.children) {
+    if (node.classList.contains("problem-block")) {
+      const title = node.querySelector(".problem-title");
+      if (title) lines.push(title.textContent.trim());
+      const items = node.querySelectorAll(".problem-items li");
+      items.forEach(li => lines.push("- " + li.textContent.trim()));
+      lines.push("");
+    } else if (node.classList.contains("boilerplate-block")) {
+      lines.push(node.textContent.trim());
+      lines.push("");
+    } else {
+      // Fallback: raw text content for any other node
+      const t = node.textContent.trim();
+      if (t) lines.push(t);
+    }
+  }
+  return lines.join("\n").trim();
+}
+
 // ─── Process Note ─────────────────────────────────────────────────────────
 window.processNote = async function() {
   if (!isModelReady || !engine) return;
 
+  // For mic tab, always read from the (possibly-edited) textarea
   const input = currentTab === "mic"
-    ? transcript.trim()
+    ? document.getElementById("transcriptText").value.trim()
     : document.getElementById("textInput").value.trim();
 
   if (!input) return;
@@ -287,12 +357,15 @@ window.processNote = async function() {
   const streaming = document.getElementById("outputStreaming");
   const streamText = document.getElementById("streamText");
   const btnCopy = document.getElementById("btnCopy");
+  const editHint = document.getElementById("editHint");
   const thinkLabel = document.querySelector(".thinking-label");
 
   empty.style.display = "none";
   content.style.display = "none";
+  content.contentEditable = "false";
   streaming.style.display = "block";
   btnCopy.style.display = "none";
+  editHint.style.display = "none";
   streamText.textContent = "";
 
   document.getElementById("btnProcess").disabled = true;
@@ -471,7 +544,15 @@ Rash
     // Update UI with cleaned transcript
     if (currentTab === "mic") {
       transcript = cleanedInput;
-      document.getElementById("transcriptText").textContent = cleanedInput;
+      const ta = document.getElementById("transcriptText");
+      ta.value = cleanedInput;
+      ta.readOnly = false;
+      ta.classList.add("is-editable");
+      document.getElementById("transcriptLabel").textContent = "Transcript — editable";
+      ta.oninput = () => {
+        transcript = ta.value;
+        updateProcessBtn();
+      };
     } else {
       document.getElementById("textInput").value = cleanedInput;
     }
@@ -509,7 +590,18 @@ Rash
     streaming.style.display = "none";
     renderOutput(processedText);
     btnCopy.style.display = "flex";
+    editHint.style.display = "flex";
     window._rawOutput = processedText;
+
+    // Enable contenteditable on the output after a short settle delay
+    setTimeout(() => {
+      content.contentEditable = "true";
+    }, 200);
+
+    // Autocopy ~400ms after generation completes
+    setTimeout(() => {
+      autoCopyToClipboard(processedText);
+    }, 400);
 
   } catch (err) {
     console.error("Generation error:", err);
@@ -592,7 +684,8 @@ function renderOutput(raw) {
 
 // ─── Copy ─────────────────────────────────────────────────────────────────
 window.copyOutput = function() {
-  const text = window._rawOutput || "";
+  // Always derive text from the live (possibly-edited) DOM
+  const text = getCurrentOutputText() || window._rawOutput || "";
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById("btnCopy");
     btn.classList.add("copied");
@@ -607,18 +700,31 @@ window.copyOutput = function() {
 // ─── Clear ────────────────────────────────────────────────────────────────
 window.clearAll = function() {
   transcript = "";
-  document.getElementById("transcriptText").innerHTML = '<span class="placeholder">Your words will appear here as you speak…</span>';
+  const ta = document.getElementById("transcriptText");
+  ta.value = "";
+  ta.placeholder = "Your words will appear here as you speak…";
+  ta.readOnly = true;
+  ta.classList.remove("is-editable");
+  ta.oninput = null;
+  document.getElementById("transcriptLabel").textContent = "Transcript";
+
   document.getElementById("textInput").value = "";
   document.getElementById("outputEmpty").style.display = "flex";
-  document.getElementById("outputContent").style.display = "none";
+
+  const content = document.getElementById("outputContent");
+  content.style.display = "none";
+  content.contentEditable = "false";
+  content.innerHTML = "";
+
   document.getElementById("outputStreaming").style.display = "none";
   document.getElementById("btnCopy").style.display = "none";
+  document.getElementById("editHint").style.display = "none";
 
   const area = document.getElementById("outputArea");
   const err = area.querySelector(".error-msg");
   if (err) err.remove();
   area.appendChild(document.getElementById("outputEmpty"));
-  area.appendChild(document.getElementById("outputContent"));
+  area.appendChild(content);
   area.appendChild(document.getElementById("outputStreaming"));
 
   window._rawOutput = "";

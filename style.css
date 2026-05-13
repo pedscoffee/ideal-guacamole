@@ -144,6 +144,31 @@ header {
   50% { opacity: 0.3; }
 }
 
+/* ===================== AUTOCOPY TOAST ===================== */
+.autocopy-toast {
+  position: fixed;
+  bottom: 4rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--bg-panel);
+  border: 1px solid var(--green-dim);
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  box-shadow: 0 0 16px var(--green-glow);
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.autocopy-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ===================== MAIN ===================== */
 main {
   flex: 1;
@@ -200,6 +225,20 @@ main {
   color: var(--text-bright);
   letter-spacing: 0.02em;
   flex: 1;
+}
+
+/* Edit hint badge in output panel header */
+.edit-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: var(--green-dim);
+  opacity: 0.75;
+  pointer-events: none;
+  user-select: none;
 }
 
 /* ===================== TABS ===================== */
@@ -333,6 +372,12 @@ main {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  transition: border-color 0.2s;
+}
+
+/* Highlight the transcript box border when editable */
+.transcript-box:has(.transcript-text.is-editable) {
+  border-color: var(--border-bright);
 }
 
 .transcript-label {
@@ -344,8 +389,15 @@ main {
   padding: 0.4rem 0.75rem;
   border-bottom: 1px solid var(--border);
   background: rgba(0,0,0,0.2);
+  transition: color 0.2s;
 }
 
+/* Transcript label colour shifts green when editable */
+.transcript-box:has(.transcript-text.is-editable) .transcript-label {
+  color: var(--green-dim);
+}
+
+/* Transcript as textarea — matches the old div's look exactly */
 .transcript-text {
   flex: 1;
   overflow-y: auto;
@@ -355,8 +407,28 @@ main {
   color: var(--text);
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+  /* textarea resets */
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--font-sans);
+  width: 100%;
+  /* readonly state — looks non-interactive */
+  cursor: default;
 }
-.transcript-text .placeholder { color: var(--text-dim); font-style: italic; }
+.transcript-text::placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+}
+/* Editable state — indicate interactivity */
+.transcript-text.is-editable {
+  cursor: text;
+  color: var(--text-bright);
+}
+.transcript-text.is-editable:focus {
+  background: rgba(0, 229, 160, 0.03);
+}
 
 /* ===================== TEXT INPUT ===================== */
 .text-input-area {
@@ -471,7 +543,15 @@ main {
 .empty-icon svg { width: 48px; height: 48px; opacity: 0.25; }
 .output-empty p { font-size: 0.82rem; opacity: 0.5; }
 
-.output-content { padding: 1.25rem; }
+.output-content {
+  padding: 1.25rem;
+  outline: none;        /* suppress contenteditable focus ring */
+  transition: background 0.2s;
+}
+/* Subtle focus tint when the output area is being edited */
+.output-content[contenteditable="true"]:focus {
+  background: rgba(0, 229, 160, 0.02);
+}
 
 /* Problem Block */
 .problem-block {
