@@ -1,34 +1,23 @@
 // Present — app.js
-// WebLLM (Qwen3) + local Whisper (Transformers.js) for clinical A&P note generation
-// Audio never leaves the browser.
+// WebLLM + Web Speech API for clinical A&P note generation
 
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
-import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js";
 
 // ─── State ────────────────────────────────────────────────────────────────
 let engine = null;
 let isModelReady = false;
 let isRecording = false;
+let recognition = null;
 let transcript = "";
 let timerInterval = null;
 let timerSeconds = 0;
 let currentTab = "mic";
 
-// Whisper state
-let whisperPipeline = null;
-let isWhisperReady = false;
-let isTranscribing = false;
-
-// MediaRecorder state
-let mediaRecorder = null;
-let audioChunks = [];
-let audioStream = null;
-
 // ─── Model Setup ──────────────────────────────────────────────────────────
 const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 
 async function initModel() {
-  setStatus("loading", "Initializing LLM…");
+  setStatus("loading", "Initializing model…");
   showProgress(true, "Downloading model weights (first load ~2.3GB, cached after)…", 0);
 
   try {
@@ -48,47 +37,6 @@ async function initModel() {
     showProgress(false);
     showError("Failed to load the AI model. Please check your browser supports WebGPU (Chrome 113+ recommended) and reload.");
   }
-}
-
-// ─── Whisper Setup ────────────────────────────────────────────────────────
-// Loads whisper-small.en locally via Transformers.js (WASM/WebGPU).
-// Model weights (~244 MB) are cached in the browser after first load.
-async function initWhisper() {
-  setWhisperStatus("loading", "Loading Whisper…");
-  try {
-    // Use whisper-small.en for better accuracy; swap to whisper-base.en for faster load
-    whisperPipeline = await pipeline(
-      "automatic-speech-recognition",
-      "Xenova/whisper-small.en",
-      {
-        progress_callback: (progress) => {
-          if (progress.status === "downloading") {
-            const pct = progress.total ? Math.round((progress.loaded / progress.total) * 100) : 0;
-            setWhisperStatus("loading", `Loading Whisper… ${pct}%`);
-          }
-        }
-      }
-    );
-    isWhisperReady = true;
-    setWhisperStatus("ready", "Whisper ready (local)");
-    const btn = document.getElementById("micBtn");
-    if (btn) btn.disabled = false;
-    const hint = document.getElementById("micHint");
-    if (hint) hint.textContent = "Click to begin recording";
-  } catch (err) {
-    console.error("Whisper init failed:", err);
-    setWhisperStatus("error", "Whisper failed to load — try reloading");
-    const hint = document.getElementById("micHint");
-    if (hint) hint.textContent = "Whisper failed to load. Please reload the page.";
-  }
-}
-
-function setWhisperStatus(state, text) {
-  const dot = document.getElementById("whisperDot");
-  const label = document.getElementById("whisperText");
-  if (!dot || !label) return;
-  dot.className = "status-dot " + state;
-  label.textContent = text;
 }
 
 // ─── UI helpers ───────────────────────────────────────────────────────────
@@ -141,156 +89,84 @@ window.switchTab = function(tab) {
   updateProcessBtn();
 };
 
-// ─── Audio Recording (MediaRecorder) ─────────────────────────────────────
-// Records audio as WebM/OGG; on stop, decodes to PCM float32 for Whisper.
+// ─── Speech Recognition ───────────────────────────────────────────────────
+function setupSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById("micHint").textContent = "Speech recognition not supported in this browser. Please use the Text tab.";
+    document.getElementById("micBtn").disabled = true;
+    return;
+  }
 
-window.toggleRecording = async function() {
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+
+  let finalTranscript = "";
+
+  recognition.onresult = (event) => {
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) {
+        finalTranscript += result[0].transcript + " ";
+      } else {
+        interim += result[0].transcript;
+      }
+    }
+    transcript = finalTranscript;
+    const display = finalTranscript + (interim ? `<em style="color:var(--text-dim)">${interim}</em>` : "");
+    document.getElementById("transcriptText").innerHTML = display || '<span class="placeholder">Your words will appear here as you speak…</span>';
+    updateProcessBtn();
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error !== "aborted") {
+      console.warn("Speech error:", e.error);
+      stopRecording();
+    }
+  };
+
+  recognition.onend = () => {
+    if (isRecording) {
+      try { recognition.start(); } catch (_) {}
+    }
+  };
+}
+
+window.toggleRecording = function() {
   if (isRecording) {
     stopRecording();
   } else {
-    await startRecording();
+    startRecording();
   }
 };
 
-async function startRecording() {
-  if (!isWhisperReady) {
-    const hint = document.getElementById("micHint");
-    if (hint) hint.textContent = "Whisper is still loading, please wait…";
-    return;
+function startRecording() {
+  if (!recognition) {
+    setupSpeechRecognition();
+    if (!recognition) return;
   }
-
-  try {
-    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  } catch (err) {
-    console.error("Microphone access denied:", err);
-    const hint = document.getElementById("micHint");
-    if (hint) hint.textContent = "Microphone access denied. Please allow microphone access and try again.";
-    return;
-  }
-
-  // Pick best supported MIME type
-  const mimeType = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
-    "audio/ogg"
-  ].find(t => MediaRecorder.isTypeSupported(t)) || "";
-
-  audioChunks = [];
-  mediaRecorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
-
-  mediaRecorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) audioChunks.push(e.data);
-  };
-
-  mediaRecorder.onstop = async () => {
-    // Stop all mic tracks to release the microphone indicator
-    audioStream.getTracks().forEach(t => t.stop());
-
-    // Build blob and transcribe
-    const blob = new Blob(audioChunks, { type: mimeType || "audio/webm" });
-    await transcribeAudio(blob);
-  };
-
-  mediaRecorder.start(250); // collect data every 250ms
   isRecording = true;
-
   document.getElementById("micVisualizer").classList.add("recording");
   document.getElementById("micBtn").style.cssText = "";
-  document.getElementById("micHint").textContent = "Recording… click to stop";
+  document.getElementById("micHint").textContent = "Listening… speak your assessment and plan";
   document.getElementById("recordingTimer").style.display = "flex";
   timerSeconds = 0;
   updateTimer();
   timerInterval = setInterval(updateTimer, 1000);
+  try { recognition.start(); } catch (_) {}
 }
 
 function stopRecording() {
-  if (!mediaRecorder || mediaRecorder.state === "inactive") return;
   isRecording = false;
-  clearInterval(timerInterval);
   document.getElementById("micVisualizer").classList.remove("recording");
-  document.getElementById("micHint").textContent = "Transcribing with local Whisper…";
+  document.getElementById("micHint").textContent = "Click to begin recording";
   document.getElementById("recordingTimer").style.display = "none";
-  document.getElementById("micBtn").disabled = true;
-  mediaRecorder.stop(); // triggers onstop → transcribeAudio
-}
-
-async function transcribeAudio(blob) {
-  isTranscribing = true;
-  const transcriptEl = document.getElementById("transcriptText");
-  transcriptEl.innerHTML = '<span class="placeholder">Transcribing locally with Whisper…</span>';
-
-  try {
-    // Decode to AudioBuffer via Web Audio API
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    let audioBuffer;
-    try {
-      audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    } finally {
-      audioCtx.close();
-    }
-
-    // Resample to 16 kHz mono float32 (Whisper's required format)
-    const float32 = resampleTo16kHz(audioBuffer);
-
-    // Run Whisper locally — model weights never leave the browser
-    const result = await whisperPipeline(float32, {
-      chunk_length_s: 30,
-      stride_length_s: 5,
-      language: "english",
-      task: "transcribe",
-      return_timestamps: false
-    });
-
-    const text = (result.text || "").trim();
-    transcript = text;
-
-    if (text) {
-      transcriptEl.innerHTML = text;
-    } else {
-      transcriptEl.innerHTML = '<span class="placeholder">No speech detected. Try recording again.</span>';
-    }
-  } catch (err) {
-    console.error("Whisper transcription error:", err);
-    transcriptEl.innerHTML = '<span class="placeholder">Transcription failed. Please try again.</span>';
-  } finally {
-    isTranscribing = false;
-    document.getElementById("micBtn").disabled = false;
-    document.getElementById("micHint").textContent = "Click to record again";
-    updateProcessBtn();
-  }
-}
-
-/**
- * Converts an AudioBuffer to a mono 16 kHz Float32Array.
- * If the buffer is already 16 kHz it returns the first channel directly.
- * Otherwise uses OfflineAudioContext to resample.
- */
-async function resampleTo16kHz(audioBuffer) {
-  const targetRate = 16000;
-  const numFrames = audioBuffer.length;
-  const srcRate = audioBuffer.sampleRate;
-
-  if (srcRate === targetRate) {
-    // Already correct sample rate — just mix down to mono
-    const ch0 = audioBuffer.getChannelData(0);
-    if (audioBuffer.numberOfChannels === 1) return ch0;
-    const ch1 = audioBuffer.getChannelData(1);
-    const mono = new Float32Array(ch0.length);
-    for (let i = 0; i < ch0.length; i++) mono[i] = (ch0[i] + ch1[i]) / 2;
-    return mono;
-  }
-
-  // Resample via OfflineAudioContext
-  const targetLength = Math.round(numFrames * targetRate / srcRate);
-  const offlineCtx = new OfflineAudioContext(1, targetLength, targetRate);
-  const offlineSource = offlineCtx.createBufferSource();
-  offlineSource.buffer = audioBuffer;
-  offlineSource.connect(offlineCtx.destination);
-  offlineSource.start();
-  const resampled = await offlineCtx.startRendering();
-  return resampled.getChannelData(0);
+  clearInterval(timerInterval);
+  try { recognition.stop(); } catch (_) {}
+  updateProcessBtn();
 }
 
 function updateTimer() {
@@ -303,14 +179,17 @@ function updateTimer() {
 // ─── Post-Processors ──────────────────────────────────────────────────────
 
 // 1. Strip <think>...</think> blocks that Qwen3 may emit despite /no_think.
+//    Handles multiline blocks and malformed unclosed tags defensively.
 function stripThinkTags(raw) {
   return raw
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .replace(/<think>[\s\S]*/gi, "")
+    .replace(/<think>[\s\S]*/gi, "")   // unclosed tag: drop everything after it
     .trim();
 }
 
 // 2. Replace [BOILERPLATE:KEY] tags with guaranteed-correct boilerplate text.
+//    To update boilerplate, edit ONLY the BOILERPLATE object below.
+//    Unknown keys are silently removed so stray tags never reach the output.
 const BOILERPLATE = {
   WCC:
     "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. " +
@@ -353,6 +232,8 @@ function applyBoilerplate(raw) {
   });
 }
 
+// Master post-process pipeline — order matters: strip think tags first,
+// then inject boilerplate so tags inside think blocks can't accidentally fire.
 function postProcess(raw) {
   return applyBoilerplate(stripThinkTags(raw));
 }
@@ -519,6 +400,8 @@ Rash
 - Follow-Up: PRN
 [BOILERPLATE:ILLNESS]`;
 
+  // /no_think appended to user prompt — Qwen3's native in-prompt thinking toggle,
+  // more reliable than extra_body in WebLLM context.
   const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}\n\n/no_think`;
 
   try {
@@ -537,9 +420,11 @@ Rash
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || "";
       rawText += delta;
+      // Show live stream; think tags visible during generation but stripped on completion
       streamText.textContent = rawText;
     }
 
+    // Post-process: strip think tags, then inject boilerplate
     const processedText = postProcess(rawText);
 
     streaming.style.display = "none";
@@ -557,6 +442,8 @@ Rash
 };
 
 // ─── Render Output ────────────────────────────────────────────────────────
+// Boilerplate paragraphs are long prose sentences injected by postProcess().
+// They get a distinct italic dim style vs. short diagnosis headings.
 function isBoilerplateParagraph(text) {
   return text.length > 60 && !text.startsWith("-") && !text.startsWith("•");
 }
@@ -579,6 +466,7 @@ function renderOutput(raw) {
     const isBoilerplate = isBoilerplateParagraph(trimmed);
 
     if (isBoilerplate) {
+      // Render as distinct italic prose block, not a diagnosis heading
       const bp = document.createElement("div");
       bp.className = "boilerplate-block";
       bp.style.opacity = "0";
@@ -590,6 +478,7 @@ function renderOutput(raw) {
       requestAnimationFrame(() => { bp.style.opacity = "1"; });
 
     } else if (!isBullet) {
+      // Diagnosis / problem heading
       const block = document.createElement("div");
       block.className = "problem-block";
       block.style.animationDelay = `${blockCount * 0.08}s`;
@@ -662,12 +551,5 @@ window.clearAll = function() {
 document.getElementById("textInput").addEventListener("input", updateProcessBtn);
 
 // ─── Boot ─────────────────────────────────────────────────────────────────
-// Disable mic button until Whisper is loaded
-const micBtnEl = document.getElementById("micBtn");
-if (micBtnEl) micBtnEl.disabled = true;
-const micHintEl = document.getElementById("micHint");
-if (micHintEl) micHintEl.textContent = "Loading local Whisper model…";
-
-// Load both models in parallel for fastest startup
+setupSpeechRecognition();
 initModel();
-initWhisper();
