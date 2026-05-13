@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Box body -->
+  <rect x="4" y="14" width="24" height="15" rx="1.5" fill="none" stroke="#00e5a0" stroke-width="1.8"/>
+  <!-- Box lid -->
+  <rect x="2" y="10" width="28" height="5" rx="1.5" fill="none" stroke="#00e5a0" stroke-width="1.8"/>
+  <!-- Vertical ribbon on lid -->
+  <rect x="14" y="10" width="4" height="5" rx="0" fill="#00e5a0" opacity="0.35"/>
+  <!-- Vertical ribbon on body -->
+  <rect x="14" y="15" width="4" height="14" rx="0" fill="#00e5a0" opacity="0.35"/>
+  <!-- Bow left loop -->
+  <path d="M16 10 C16 10 10 6 9 4 C8 2 10 1 12 3 C14 5 16 10 16 10Z" fill="none" stroke="#00e5a0" stroke-width="1.8" stroke-linejoin="round"/>
+  <!-- Bow right loop -->
+  <path d="M16 10 C16 10 22 6 23 4 C24 2 22 1 20 3 C18 5 16 10 16 10Z" fill="none" stroke="#00e5a0" stroke-width="1.8" stroke-linejoin="round"/>
+</svg>
