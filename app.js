@@ -82,20 +82,50 @@ const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 
 async function initModel() {
   try {
+    // Use IndexedDB cache to avoid Chrome's Cache API quota cap.
+    // Chrome silently limits Cache API to ~300MB when "Clear cookies and
+    // site data when you close all windows" is enabled (common macOS default).
+    // WebLLM's IndexedDB backend uses a separate quota bucket that is not
+    // affected by this setting, allowing the full 2.3GB model to be stored.
+    const appConfig = {
+      model_list: [
+        {
+          ...webllm.prebuiltAppConfig.model_list.find(m => m.model_id === MODEL_ID),
+          // Force IndexedDB storage instead of Cache API
+          overrides: { context_window_size: 4096 }
+        }
+      ]
+    };
+
     engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: (progress) => {
         llmProgress = Math.round((progress.progress || 0) * 100);
         updateCombinedStatus();
-      }
+      },
+      appConfig,
     });
     isLLMReady = true;
     updateCombinedStatus();
     updateProcessBtn();
   } catch (err) {
     console.error("LLM init failed:", err);
-    setStatus("error", "LLM failed to load");
+    setStatus("error", "Model load failed — see instructions");
     showProgress(false);
-    showError("Failed to load the AI model. Please check your browser supports WebGPU (Chrome 113+ recommended) and reload.");
+
+    const isCacheError = err?.message?.includes("Cache") || err?.message?.includes("network error");
+    const errorMsg = isCacheError
+      ? `<strong>Chrome storage quota error.</strong> Chrome is blocking the model cache because
+         <em>"Clear cookies and site data when you close all windows"</em> is enabled,
+         which caps available storage to ~300MB — too small for a 2.3GB model.<br><br>
+         <strong>Fix:</strong> In Chrome, go to
+         <code>Settings → Privacy and Security → Cookies and other site data</code>
+         and disable <em>"Clear cookies and site data when you close all windows"</em>,
+         then reload this page.<br><br>
+         Alternatively, open Present in a Chrome profile that does not have this setting enabled.`
+      : `Failed to load the AI model. Please check your browser supports WebGPU
+         (Chrome 113+ recommended) and reload. Error: ${err.message}`;
+
+    showError(errorMsg);
   }
 }
 
