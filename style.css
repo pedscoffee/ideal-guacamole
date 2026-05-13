@@ -621,25 +621,15 @@ footer a:hover { color: var(--green); }
 
 /* ===================== ERROR ===================== */
 .error-msg {
-  font-family: var(--font-sans);
-  font-size: 0.82rem;
-  line-height: 1.7;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   color: var(--red);
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.25rem;
   background: rgba(255,77,77,0.05);
   border-left: 3px solid var(--red);
   border-radius: 0 var(--radius) var(--radius) 0;
   margin: 1rem;
 }
-.error-msg strong { color: #ff8080; }
-.error-msg code {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  background: rgba(255,255,255,0.06);
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-.error-msg em { color: var(--amber); font-style: normal; font-weight: 500; }
 
 /* ===================== RESPONSIVE ===================== */
 @media (max-width: 900px) {
