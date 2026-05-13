@@ -1,4 +1,4 @@
-// ClinicalScribe — app.js
+// Present — app.js
 // WebLLM + Web Speech API for clinical A&P note generation
 
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
@@ -442,6 +442,12 @@ Rash
 };
 
 // ─── Render Output ────────────────────────────────────────────────────────
+// Boilerplate paragraphs are long prose sentences injected by postProcess().
+// They get a distinct italic dim style vs. short diagnosis headings.
+function isBoilerplateParagraph(text) {
+  return text.length > 60 && !text.startsWith("-") && !text.startsWith("•");
+}
+
 function renderOutput(raw) {
   const content = document.getElementById("outputContent");
   content.style.display = "block";
@@ -457,8 +463,22 @@ function renderOutput(raw) {
     if (!trimmed) continue;
 
     const isBullet = trimmed.startsWith("-") || trimmed.startsWith("•");
+    const isBoilerplate = isBoilerplateParagraph(trimmed);
 
-    if (!isBullet) {
+    if (isBoilerplate) {
+      // Render as distinct italic prose block, not a diagnosis heading
+      const bp = document.createElement("div");
+      bp.className = "boilerplate-block";
+      bp.style.opacity = "0";
+      bp.textContent = trimmed;
+      content.appendChild(bp);
+      currentBlock = null;
+      currentItems = null;
+      blockCount++;
+      requestAnimationFrame(() => { bp.style.opacity = "1"; });
+
+    } else if (!isBullet) {
+      // Diagnosis / problem heading
       const block = document.createElement("div");
       block.className = "problem-block";
       block.style.animationDelay = `${blockCount * 0.08}s`;
@@ -477,28 +497,12 @@ function renderOutput(raw) {
       currentBlock = block;
       currentItems = ul;
       blockCount++;
+      requestAnimationFrame(() => { block.style.opacity = ""; });
 
-      requestAnimationFrame(() => {
-        block.style.opacity = "";
-      });
     } else if (isBullet && currentItems) {
       const li = document.createElement("li");
       li.textContent = trimmed.replace(/^[-•]\s*/, "");
       currentItems.appendChild(li);
-    } else if (!currentBlock) {
-      const block = document.createElement("div");
-      block.className = "problem-block";
-      const title = document.createElement("div");
-      title.className = "problem-title";
-      title.textContent = trimmed;
-      block.appendChild(title);
-      const ul = document.createElement("ul");
-      ul.className = "problem-items";
-      block.appendChild(ul);
-      content.appendChild(block);
-      currentBlock = block;
-      currentItems = ul;
-      blockCount++;
     }
   }
 

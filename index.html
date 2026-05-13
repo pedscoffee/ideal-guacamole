@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClinicalScribe — AI-Powered Assessment Notes</title>
+  <title>Present — AI-Assisted A&P Notes</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet" />
@@ -14,8 +14,22 @@
 
   <header>
     <div class="logo">
-      <span class="logo-cross">✚</span>
-      <span class="logo-text">ClinicalScribe</span>
+      <!-- Present gift box SVG logo -->
+      <svg class="logo-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Present logo">
+        <!-- Box body -->
+        <rect x="4" y="14" width="24" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <!-- Box lid -->
+        <rect x="2" y="10" width="28" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <!-- Vertical ribbon on lid -->
+        <rect x="14" y="10" width="4" height="5" rx="0" fill="currentColor" opacity="0.25"/>
+        <!-- Vertical ribbon on body -->
+        <rect x="14" y="15" width="4" height="14" rx="0" fill="currentColor" opacity="0.25"/>
+        <!-- Bow left loop -->
+        <path d="M16 10 C16 10 10 6 9 4 C8 2 10 1 12 3 C14 5 16 10 16 10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <!-- Bow right loop -->
+        <path d="M16 10 C16 10 22 6 23 4 C24 2 22 1 20 3 C18 5 16 10 16 10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      </svg>
+      <span class="logo-text">Present</span>
       <span class="logo-tag">AI-Assisted A&P Notes</span>
     </div>
     <div class="header-right">
@@ -128,9 +142,11 @@
   </main>
 
   <footer>
-    <span>ClinicalScribe runs entirely in your browser — no data leaves your device.</span>
+    <span>Present runs entirely in your browser — no data leaves your device.</span>
     <span class="footer-sep">|</span>
-    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank">WebLLM</a> &amp; <a href="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct" target="_blank">Qwen2.5</a></span>
+    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank" rel="noopener noreferrer">WebLLM</a> &amp; <a href="https://huggingface.co/Qwen/Qwen3-4B" target="_blank" rel="noopener noreferrer">Qwen3</a></span>
+    <span class="footer-sep">|</span>
+    <a href="https://github.com/pedscoffee/ideal-guacamole" target="_blank" rel="noopener noreferrer">Open Source</a>
   </footer>
 
   <script type="module" src="app.js"></script>

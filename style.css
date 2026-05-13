@@ -1,7 +1,7 @@
 /* =============================================
-   ClinicalScribe — Clinical Aesthetic
+   Present — Clinical Documentation Tool
    Dark slate + phosphor green monitor vibes
-   IBM Plex for that medical-tech precision
+   IBM Plex for medical-tech precision
    ============================================= */
 
 :root {
@@ -41,7 +41,7 @@ body {
   position: relative;
 }
 
-/* Subtle scanline effect */
+/* Subtle scanline overlay */
 .scanline {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -78,12 +78,13 @@ header {
   gap: 0.6rem;
 }
 
-.logo-cross {
-  font-size: 1.2rem;
+/* Present gift box SVG logo */
+.logo-svg {
+  width: 28px;
+  height: 28px;
   color: var(--green);
-  font-weight: 600;
-  line-height: 1;
-  text-shadow: 0 0 12px var(--green);
+  filter: drop-shadow(0 0 6px rgba(0, 229, 160, 0.5));
+  flex-shrink: 0;
 }
 
 .logo-text {
@@ -132,9 +133,7 @@ header {
   box-shadow: 0 0 8px var(--amber);
   animation: blink 1s infinite;
 }
-.status-dot.error {
-  background: var(--red);
-}
+.status-dot.error { background: var(--red); }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
@@ -169,23 +168,14 @@ main {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  position: relative;
-}
-
-.panel::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--green-dim), transparent);
-  opacity: 0.4;
+  min-height: 0;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel-alt);
   flex-shrink: 0;
@@ -193,17 +183,19 @@ main {
 
 .panel-label {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   letter-spacing: 0.15em;
-  color: var(--text-label);
   text-transform: uppercase;
-  border: 1px solid var(--border);
+  color: var(--text-label);
+  background: rgba(0,0,0,0.3);
   padding: 2px 6px;
   border-radius: 2px;
+  border: 1px solid var(--border);
 }
 
 .panel-header h2 {
-  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
   font-weight: 500;
   color: var(--text-bright);
   letter-spacing: 0.02em;
@@ -213,7 +205,9 @@ main {
 /* ===================== TABS ===================== */
 .input-mode-tabs {
   display: flex;
+  gap: 0;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-alt);
   flex-shrink: 0;
 }
 
@@ -223,17 +217,15 @@ main {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.65rem 1rem;
+  padding: 0.55rem 1rem;
   background: transparent;
   border: none;
+  border-bottom: 2px solid transparent;
   color: var(--text-dim);
   font-family: var(--font-sans);
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.78rem;
   cursor: pointer;
   transition: all 0.2s;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
   letter-spacing: 0.03em;
 }
 .tab-btn svg { width: 14px; height: 14px; }
@@ -357,7 +349,7 @@ main {
 .transcript-text {
   flex: 1;
   overflow-y: auto;
-  padding: 0.85rem 0.85rem;
+  padding: 0.85rem;
   font-size: 0.85rem;
   line-height: 1.65;
   color: var(--text);
@@ -476,15 +468,10 @@ main {
   gap: 1rem;
   color: var(--text-dim);
 }
-.empty-icon svg {
-  width: 48px; height: 48px;
-  opacity: 0.25;
-}
+.empty-icon svg { width: 48px; height: 48px; opacity: 0.25; }
 .output-empty p { font-size: 0.82rem; opacity: 0.5; }
 
-.output-content {
-  padding: 1.25rem;
-}
+.output-content { padding: 1.25rem; }
 
 /* Problem Block */
 .problem-block {
@@ -509,6 +496,19 @@ main {
   margin-bottom: 0.5rem;
 }
 
+/* Boilerplate blocks rendered as italic prose, visually distinct from problem titles */
+.boilerplate-block {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-dim);
+  line-height: 1.65;
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  border-left: 2px solid var(--border-bright);
+  margin-bottom: 1rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
 .problem-items {
   list-style: none;
   padding: 0 0 0 0.5rem;
@@ -529,9 +529,7 @@ main {
 }
 
 /* Streaming output */
-.output-streaming {
-  padding: 1.25rem;
-}
+.output-streaming { padding: 1.25rem; }
 .thinking-label {
   display: flex;
   align-items: center;
@@ -621,6 +619,18 @@ footer a:hover { color: var(--green); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
 
+/* ===================== ERROR ===================== */
+.error-msg {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--red);
+  padding: 1rem 1.25rem;
+  background: rgba(255,77,77,0.05);
+  border-left: 3px solid var(--red);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 1rem;
+}
+
 /* ===================== RESPONSIVE ===================== */
 @media (max-width: 900px) {
   main { padding: 1rem; }
@@ -631,16 +641,6 @@ footer a:hover { color: var(--green); }
   }
   .panel { height: 500px; }
   .panel-output { height: auto; min-height: 400px; }
-}
-
-/* Error state */
-.error-msg {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--red);
-  padding: 1rem 1.25rem;
-  background: rgba(255,77,77,0.05);
-  border-left: 3px solid var(--red);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  margin: 1rem;
+  header { padding: 0 1rem; }
+  .logo-tag { display: none; }
 }
