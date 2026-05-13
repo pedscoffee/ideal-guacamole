@@ -12,15 +12,21 @@
 <body>
   <div class="scanline"></div>
 
-  <!-- ── Header ─────────────────────────────────────────────────── -->
   <header>
     <div class="logo">
+      <!-- Present gift box SVG logo -->
       <svg class="logo-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Present logo">
+        <!-- Box body -->
         <rect x="4" y="14" width="24" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <!-- Box lid -->
         <rect x="2" y="10" width="28" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
-        <rect x="14" y="10" width="4" height="5" fill="currentColor" opacity="0.3"/>
-        <rect x="14" y="15" width="4" height="14" fill="currentColor" opacity="0.3"/>
+        <!-- Vertical ribbon on lid -->
+        <rect x="14" y="10" width="4" height="5" rx="0" fill="currentColor" opacity="0.25"/>
+        <!-- Vertical ribbon on body -->
+        <rect x="14" y="15" width="4" height="14" rx="0" fill="currentColor" opacity="0.25"/>
+        <!-- Bow left loop -->
         <path d="M16 10 C16 10 10 6 9 4 C8 2 10 1 12 3 C14 5 16 10 16 10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <!-- Bow right loop -->
         <path d="M16 10 C16 10 22 6 23 4 C24 2 22 1 20 3 C18 5 16 10 16 10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
       </svg>
       <span class="logo-text">Present</span>
@@ -29,23 +35,11 @@
     <div class="header-right">
       <div class="model-status" id="modelStatus">
         <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">Loading models…</span>
+        <span id="statusText">Loading model…</span>
       </div>
     </div>
   </header>
 
-  <!-- ── Privacy Bar ────────────────────────────────────────────── -->
-  <div class="privacy-bar" id="privacyBar">
-    <div class="privacy-indicator">
-      <span class="privacy-dot green" id="privacyDot"></span>
-      <span id="privacyLabel">🔒 No patient data stored or transmitted</span>
-    </div>
-    <button class="privacy-btn" onclick="openPrivacyModal()" aria-label="View privacy details">
-      How we protect your data ›
-    </button>
-  </div>
-
-  <!-- ── Main ───────────────────────────────────────────────────── -->
   <main>
     <div class="workspace">
 
@@ -74,7 +68,7 @@
               <div class="mic-ring mic-ring-1"></div>
               <div class="mic-ring mic-ring-2"></div>
               <div class="mic-ring mic-ring-3"></div>
-              <button class="mic-btn" id="micBtn" onclick="toggleRecording()" aria-label="Toggle recording">
+              <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
               </button>
             </div>
@@ -86,8 +80,8 @@
           </div>
 
           <div class="transcript-box" id="transcriptBox">
-            <div class="transcript-label">Transcript (on-device Whisper)</div>
-            <div class="transcript-text" id="transcriptText"><span class="placeholder">Your words will appear here after recording…</span></div>
+            <div class="transcript-label">Live Transcript</div>
+            <div class="transcript-text" id="transcriptText"><span class="placeholder">Your words will appear here as you speak…</span></div>
           </div>
         </div>
 
@@ -95,11 +89,10 @@
         <div class="tab-content hidden" id="textTab">
           <div class="text-input-area">
             <label for="textInput">Paste or type your assessment &amp; plan dictation:</label>
-            <textarea id="textInput" placeholder="e.g. Patient has acute otitis media, we will start amoxicillin 90mg/kg/day BID. Tylenol and Motrin for pain and fever. Return precautions for worsening fever, pain, or not improving. Follow up PRN..."></textarea>
+            <textarea id="textInput" placeholder="e.g. Patient has acute otitis media, we will start amoxicillin. For pain and fever give Tylenol and Motrin and encourage fluids. Return precautions for worsening fever, pain, or if not improving. Follow up PRN..."></textarea>
           </div>
         </div>
 
-        <!-- Action bar -->
         <div class="action-bar">
           <button class="btn-process" id="btnProcess" onclick="processNote()" disabled>
             <span class="btn-icon">
@@ -107,18 +100,8 @@
             </span>
             Generate Notes
           </button>
-          <!-- New Patient = clear all data, styled prominently -->
-          <button class="btn-new-patient" onclick="clearAll()" title="Clear all data for new patient">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-            </svg>
-            New Patient
-          </button>
+          <button class="btn-clear" onclick="clearAll()">Clear</button>
         </div>
-
-        <!-- Clear flash confirmation -->
-        <div class="clear-flash" id="clearFlash">✓ All patient data cleared</div>
       </section>
 
       <!-- RIGHT: Output Panel -->
@@ -126,7 +109,7 @@
         <div class="panel-header">
           <span class="panel-label">OUTPUT</span>
           <h2>Structured Notes</h2>
-          <button class="btn-copy" id="btnCopy" onclick="copyOutput()" style="display:none" aria-label="Copy notes to clipboard">
+          <button class="btn-copy" id="btnCopy" onclick="copyOutput()" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             Copy
           </button>
@@ -151,113 +134,20 @@
 
         <div class="progress-bar-wrap" id="progressWrap" style="display:none">
           <div class="progress-bar" id="progressBar"></div>
-          <span class="progress-label" id="progressLabel">Loading models…</span>
+          <span class="progress-label" id="progressLabel">Loading model…</span>
         </div>
       </section>
 
     </div>
   </main>
 
-  <!-- ── Footer ─────────────────────────────────────────────────── -->
   <footer>
     <span>Present runs entirely in your browser — no data leaves your device.</span>
     <span class="footer-sep">|</span>
-    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank" rel="noopener noreferrer">WebLLM</a>, <a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener noreferrer">Transformers.js</a> &amp; <a href="https://openai.com/research/whisper" target="_blank" rel="noopener noreferrer">Whisper</a></span>
+    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank" rel="noopener noreferrer">WebLLM</a> &amp; <a href="https://huggingface.co/Qwen/Qwen3-4B" target="_blank" rel="noopener noreferrer">Qwen3</a></span>
     <span class="footer-sep">|</span>
     <a href="https://github.com/pedscoffee/ideal-guacamole" target="_blank" rel="noopener noreferrer">Open Source</a>
   </footer>
-
-  <!-- ── Privacy Modal ──────────────────────────────────────────── -->
-  <div class="modal-backdrop" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="modalTitle">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Data Privacy &amp; Safety
-        </h2>
-        <button class="modal-close" onclick="closePrivacyModal()" aria-label="Close privacy dialog">✕</button>
-      </div>
-
-      <div class="modal-body">
-
-        <div class="privacy-section">
-          <h3>What Present does with your data</h3>
-          <table class="privacy-table">
-            <thead>
-              <tr><th>Data type</th><th>Where it goes</th><th>Persists?</th></tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Voice audio</td>
-                <td><span class="badge green">Device only</span> On-device Whisper via WebAssembly/WebGPU</td>
-                <td><span class="badge green">Never</span></td>
-              </tr>
-              <tr>
-                <td>Transcript text</td>
-                <td><span class="badge green">Device only</span> JavaScript memory only</td>
-                <td><span class="badge green">Never</span></td>
-              </tr>
-              <tr>
-                <td>Generated note</td>
-                <td><span class="badge green">Device only</span> JavaScript memory only</td>
-                <td><span class="badge green">Never</span></td>
-              </tr>
-              <tr>
-                <td>Model weights</td>
-                <td><span class="badge amber">Browser cache</span> Cached in IndexedDB after first load</td>
-                <td><span class="badge amber">Yes (intentional)</span> So the app works offline</td>
-              </tr>
-              <tr>
-                <td>Cookies / localStorage</td>
-                <td colspan="2"><span class="badge green">None used</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="privacy-section">
-          <h3>Why this is different from cloud AI tools</h3>
-          <p>Most AI documentation tools (DAX, Nuance, Abridge) stream your audio to remote servers for processing. Present uses <strong>OpenAI Whisper compiled to WebAssembly</strong>, running the entire speech-to-text model inside your browser's sandboxed JavaScript engine. The AI note generator (Qwen3) also runs entirely on your GPU via WebGPU. <strong>No patient identifiers, audio, or notes ever leave the device.</strong></p>
-        </div>
-
-        <div class="privacy-section">
-          <h3>Verify it yourself — in 60 seconds</h3>
-          <ol class="verify-steps">
-            <li>Open <strong>Chrome DevTools</strong> (⌘⌥I on Mac, F12 on Windows)</li>
-            <li>Click the <strong>Network</strong> tab, then check <strong>Preserve log</strong></li>
-            <li>Record a voice note and click <strong>Generate Notes</strong></li>
-            <li>Filter by <strong>XHR / Fetch</strong> — you will see <strong>zero outbound requests</strong> from this app during transcription or generation</li>
-            <li>The only network calls are the <em>one-time model downloads</em> from HuggingFace CDN on first load (model weights only — no patient data)</li>
-          </ol>
-        </div>
-
-        <div class="privacy-section">
-          <h3>Model sources (open source, auditable)</h3>
-          <ul class="source-links">
-            <li>
-              <strong>Speech-to-text:</strong>
-              <a href="https://huggingface.co/onnx-community/whisper-base.en" target="_blank" rel="noopener noreferrer">onnx-community/whisper-base.en</a>
-              via <a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener noreferrer">Transformers.js</a> — ~145 MB, English, cached after first load
-            </li>
-            <li>
-              <strong>Note generation:</strong>
-              <a href="https://huggingface.co/Qwen/Qwen3-4B" target="_blank" rel="noopener noreferrer">Qwen3-4B (4-bit quantized)</a>
-              via <a href="https://webllm.mlc.ai/" target="_blank" rel="noopener noreferrer">WebLLM</a> — ~2.3 GB, cached after first load
-            </li>
-            <li>
-              <strong>App source code:</strong>
-              <a href="https://github.com/pedscoffee/ideal-guacamole" target="_blank" rel="noopener noreferrer">github.com/pedscoffee/ideal-guacamole</a>
-            </li>
-          </ul>
-        </div>
-
-        <div class="privacy-section privacy-note">
-          <strong>Note on HIPAA:</strong> Present is designed as a personal productivity tool for clinician use. As a fully local, zero-transmission application, it does not function as a cloud service or Business Associate under HIPAA. However, always follow your institution's policies regarding the use of AI tools in clinical settings.
-        </div>
-
-      </div>
-    </div>
-  </div>
 
   <script type="module" src="app.js"></script>
 </body>
