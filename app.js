@@ -287,6 +287,7 @@ window.processNote = async function() {
   const streaming = document.getElementById("outputStreaming");
   const streamText = document.getElementById("streamText");
   const btnCopy = document.getElementById("btnCopy");
+  const thinkLabel = document.querySelector(".thinking-label");
 
   empty.style.display = "none";
   content.style.display = "none";
@@ -295,6 +296,13 @@ window.processNote = async function() {
   streamText.textContent = "";
 
   document.getElementById("btnProcess").disabled = true;
+
+  const cleanupSystemPrompt = `You are a medical transcription editor. Your task is to clean up a rough ASR (Automated Speech Recognition) dictation transcript. 
+- Fix any spelling errors, phonetic mistakes, and correct medical terminology.
+- Remove disfluencies, filler words, and false starts.
+- Add proper punctuation and capitalization.
+- Do NOT change the clinical meaning, add any new information, or reformat into a list.
+- Output ONLY the continuous cleaned transcript paragraph.`;
 
   const systemPrompt = `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.
 
@@ -434,11 +442,48 @@ Rash
 - Follow-Up: PRN
 [BOILERPLATE:ILLNESS]`;
 
-  // /no_think appended to user prompt — Qwen3's native in-prompt thinking toggle,
-  // more reliable than extra_body in WebLLM context.
-  const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${input}\n\n/no_think`;
-
   try {
+    // --- PASS 1: Cleanup Transcript ---
+    thinkLabel.innerHTML = '<span class="think-dot"></span>Cleaning up transcript…';
+    
+    let cleanedInput = "";
+    const cleanupUserPrompt = `Clean up the following dictation:\n\n${input}\n\n/no_think`;
+    
+    const cleanupStream = await engine.chat.completions.create({
+      messages: [
+        { role: "system", content: cleanupSystemPrompt },
+        { role: "user", content: cleanupUserPrompt }
+      ],
+      stream: true,
+      temperature: 0.1,
+      max_tokens: 1024,
+      extra_body: { enable_thinking: false }
+    });
+
+    for await (const chunk of cleanupStream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      cleanedInput += delta;
+      streamText.textContent = cleanedInput;
+    }
+    
+    cleanedInput = stripThinkTags(cleanedInput);
+    
+    // Update UI with cleaned transcript
+    if (currentTab === "mic") {
+      transcript = cleanedInput;
+      document.getElementById("transcriptText").textContent = cleanedInput;
+    } else {
+      document.getElementById("textInput").value = cleanedInput;
+    }
+
+    // --- PASS 2: Generate Notes ---
+    thinkLabel.innerHTML = '<span class="think-dot"></span>Generating notes…';
+    streamText.textContent = "";
+
+    // /no_think appended to user prompt — Qwen3's native in-prompt thinking toggle,
+    // more reliable than extra_body in WebLLM context.
+    const userPrompt = `Convert this clinical dictation into structured assessment and plan notes:\n\n${cleanedInput}\n\n/no_think`;
+
     let rawText = "";
     const stream = await engine.chat.completions.create({
       messages: [
