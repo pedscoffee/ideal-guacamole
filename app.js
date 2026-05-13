@@ -54,81 +54,22 @@ async function initModel() {
     showError("Failed to load Whisper model.");
   });
 
-  let retries = 2;
-  while (retries >= 0) {
-    try {
-      engine = await webllm.CreateMLCEngine(MODEL_ID, {
-        initProgressCallback: (progress) => {
-          const pct = Math.round((progress.progress || 0) * 100);
-          showProgress(true, progress.text || "Loading LLM…", pct);
-        }
-      });
-      isLLMReady = true;
-      checkModelsReady();
-      break;
-    } catch (err) {
-      console.error(`Model init failed (retries left: ${retries}):`, err);
-      
-      // If it's a cache or network error, clearing caches can often unstick corrupted partial downloads
-      if (err.message && (err.message.includes("Cache") || err.message.includes("NetworkError") || err.name === "NetworkError")) {
-        if (retries > 0) {
-          showProgress(true, `Network error, clearing cache and retrying…`, 0);
-          if ('caches' in window) {
-            try {
-              const cacheNames = await caches.keys();
-              for (const name of cacheNames) {
-                if (name.includes("webllm")) await caches.delete(name);
-              }
-            } catch (e) {
-              console.error("Failed to clear webllm cache:", e);
-            }
-          }
-          await new Promise(r => setTimeout(r, 1500));
-          retries--;
-          continue;
-        }
+  try {
+    engine = await webllm.CreateMLCEngine(MODEL_ID, {
+      initProgressCallback: (progress) => {
+        const pct = Math.round((progress.progress || 0) * 100);
+        showProgress(true, progress.text || "Loading LLM…", pct);
       }
-      
-      setStatus("error", "Model failed to load");
-      showProgress(false);
-      
-      let errorHTML = `Failed to load the AI model.`;
-      if (err.message && (err.message.includes("Cache") || err.message.includes("NetworkError") || err.name === "NetworkError")) {
-        errorHTML = `<strong>Network Error:</strong> Failed to download or cache the model.<br><br>
-        This is often caused by:
-        <ul style="text-align: left; margin: 10px 0; font-size: 0.9em; line-height: 1.4;">
-          <li>An ad-blocker blocking HuggingFace LFS domains.</li>
-          <li>"Disable cache" being checked in your browser's DevTools Network tab.</li>
-          <li>Your hard drive running out of space for the ~2.3GB model.</li>
-          <li>A corrupted browser cache from a previously interrupted download.</li>
-        </ul>
-        <button onclick="window.clearAllCachesAndReload()" style="margin-top: 10px; padding: 8px 16px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold;">Clear Cache & Reload</button>`;
-      } else {
-        errorHTML += ` Please check your browser supports WebGPU and reload. (${err.message})`;
-      }
-      
-      showError(errorHTML);
-      break;
-    }
+    });
+    isLLMReady = true;
+    checkModelsReady();
+  } catch (err) {
+    console.error("Model init failed:", err);
+    setStatus("error", "Model failed to load");
+    showProgress(false);
+    showError("Failed to load the AI model. Please check your browser supports WebGPU (Chrome 113+ recommended) and reload.");
   }
 }
-
-window.clearAllCachesAndReload = async function() {
-  if ('caches' in window) {
-    try {
-      const cacheNames = await caches.keys();
-      for (const name of cacheNames) {
-        await caches.delete(name);
-      }
-      alert("Model caches cleared! The page will now reload.");
-      window.location.reload();
-    } catch (e) {
-      alert("Failed to clear caches: " + e.message);
-    }
-  } else {
-    alert("Cache API not supported in this browser. Please refresh manually.");
-  }
-};
 
 // ─── UI helpers ───────────────────────────────────────────────────────────
 function setStatus(state, text) {
