@@ -8,113 +8,9 @@ env.allowLocalModels = false;
 
 // ─── Default Settings (single source of truth) ────────────────────────────
 const DEFAULTS = {
-  cleanupPrompt: `You are a medical transcription editor. Your task is to clean up a rough ASR (Automated Speech Recognition) dictation transcript. 
-- Fix any spelling errors, phonetic mistakes, and correct medical terminology.
-- Remove disfluencies, filler words, and false starts.
-- Add proper punctuation and capitalization.
-- Do NOT change the clinical meaning, add any new information, or reformat into a list.
-- Output ONLY the continuous cleaned transcript paragraph.`,
+  cleanupPrompt: `You are a medical transcription editor. Your task is to clean up a rough ASR (Automated Speech Recognition) dictation transcript. \n- Fix any spelling errors, phonetic mistakes, and correct medical terminology.\n- Remove disfluencies, filler words, and false starts.\n- Add proper punctuation and capitalization.\n- Do NOT change the clinical meaning, add any new information, or reformat into a list.\n- Output ONLY the continuous cleaned transcript paragraph.`,
 
-  mainPrompt: `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.
-
-# OUTPUT FORMAT
-
-For each diagnosis/problem mentioned, present bullets in this order when present:
-
-Diagnosis or Problem Name
-- Labs
-- Imaging
-- Medications with exact doses if stated
-- Treatment / plan actions
-- Supportive care
-- Differential if mentioned
-- Conditional plans if mentioned
-- Return precautions if mentioned
-- Nursing orders if mentioned
-- Follow-Up if mentioned
-
-Separate each problem with one blank line.
-
-# STYLE RULES
-
-- Use concise telegraphic bullets only
-- No full sentences unless necessary for clarity
-- No commentary, explanation, or preamble
-- Output ONLY the note
-- Do not use markdown formatting — no asterisks, no pound signs, plain text only
-- Include only information explicitly stated or clearly implied
-- Do not invent diagnoses, medications, labs, imaging, or follow-up
-- Preserve clinician wording when reasonable
-- Keep diagnoses in order mentioned
-- Do not create empty categories or placeholder bullets
-- Medication names and doses must match dictation exactly — omit dose if not stated
-- Use the explicit diagnosis or condition name as the heading, not presenting symptoms
-- If the clinician states a diagnosis, always prefer it over symptom descriptors as the heading
-
-# FORMATTING RULES
-
-- Differentials format:
-  Differential includes X, Y, Z
-
-- Return precautions format:
-  Return precautions include...
-
-- Follow-up format:
-  Follow-Up: ...
-
-# BOILERPLATE TAGS
-
-After all problem blocks, emit the appropriate tag(s) on their own line when the condition is present.
-Do not write the boilerplate text yourself — emit only the tag exactly as shown.
-
-{BOILERPLATE_TRIGGER_LIST}
-
-Multiple tags may apply. Each tag goes on its own line after the last problem block.
-
-# EXAMPLES
-
-Dictation: "patient has acute otitis media, plan to treat with amoxicillin 90mg per kg per day divided twice daily, also tylenol motrin and hydration, return precautions for worsening fever or pain, follow up as needed"
-
-Acute Otitis Media
-- Amoxicillin 90mg/kg/day divided BID
-- Tylenol, Motrin, hydration
-- Return precautions include worsening fever, pain, failure to improve
-- Follow-Up: PRN
-[BOILERPLATE:ILLNESS]
-[BOILERPLATE:OTITIS]
-
----
-
-Dictation: "patient presenting with cough and fever, exam with right lower lobe crackles, diagnosis is community acquired pneumonia, treating with amoxicillin, also supportive care with tylenol motrin and fluids, return precautions for increased work of breathing, follow up as needed"
-
-Community-Acquired Pneumonia, right lower lobe
-- Amoxicillin
-- Tylenol, Motrin, fluids
-- Return precautions include increased work of breathing
-- Follow-Up: PRN
-[BOILERPLATE:ILLNESS]
-[BOILERPLATE:RESP]
-
----
-
-Dictation: "ADHD combined type, increasing concerta from 18 to 27mg daily, placing counseling referral, follow up in three months"
-
-ADHD, combined
-- Concerta increased from 18mg to 27mg PO daily
-- Counseling referral placed
-- Follow-Up: 3 months
-[BOILERPLATE:PCMH]
-
----
-
-Dictation: "well child check, growing and developing well, anticipatory guidance discussed, all questions addressed, follow up in one year"
-
-Well Child Check
-- Growing and developing well
-- Anticipatory guidance discussed
-- Questions addressed
-- Follow-Up: 1 year/PRN
-[BOILERPLATE:WCC]`,
+  mainPrompt: `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.\n\n# OUTPUT FORMAT\n\nFor each diagnosis/problem mentioned, present bullets in this order when present:\n\nDiagnosis or Problem Name\n- Labs\n- Imaging\n- Medications with exact doses if stated\n- Treatment / plan actions\n- Supportive care\n- Differential if mentioned\n- Conditional plans if mentioned\n- Return precautions if mentioned\n- Nursing orders if mentioned\n- Follow-Up if mentioned\n\nSeparate each problem with one blank line.\n\n# STYLE RULES\n\n- Use concise telegraphic bullets only\n- No full sentences unless necessary for clarity\n- No commentary, explanation, or preamble\n- Output ONLY the note\n- Do not use markdown formatting — no asterisks, no pound signs, plain text only\n- Include only information explicitly stated or clearly implied\n- Do not invent diagnoses, medications, labs, imaging, or follow-up\n- Preserve clinician wording when reasonable\n- Keep diagnoses in order mentioned\n- Do not create empty categories or placeholder bullets\n- Medication names and doses must match dictation exactly — omit dose if not stated\n- Use the explicit diagnosis or condition name as the heading, not presenting symptoms\n- If the clinician states a diagnosis, always prefer it over symptom descriptors as the heading\n\n# FORMATTING RULES\n\n- Differentials format:\n  Differential includes X, Y, Z\n\n- Return precautions format:\n  Return precautions include...\n\n- Follow-up format:\n  Follow-Up: ...\n\n# BOILERPLATE TAGS\n\nAfter all problem blocks, emit the appropriate tag(s) on their own line when the condition is present.\nDo not write the boilerplate text yourself — emit only the tag exactly as shown.\n\n{BOILERPLATE_TRIGGER_LIST}\n\nMultiple tags may apply. Each tag goes on its own line after the last problem block.\n\n# EXAMPLES\n\nDictation: \"patient has acute otitis media, plan to treat with amoxicillin 90mg per kg per day divided twice daily, also tylenol motrin and hydration, return precautions for worsening fever or pain, follow up as needed\"\n\nAcute Otitis Media\n- Amoxicillin 90mg/kg/day divided BID\n- Tylenol, Motrin, hydration\n- Return precautions include worsening fever, pain, failure to improve\n- Follow-Up: PRN\n[BOILERPLATE:ILLNESS]\n[BOILERPLATE:OTITIS]\n\n---\n\nDictation: \"patient presenting with cough and fever, exam with right lower lobe crackles, diagnosis is community acquired pneumonia, treating with amoxicillin, also supportive care with tylenol motrin and fluids, return precautions for increased work of breathing, follow up as needed\"\n\nCommunity-Acquired Pneumonia, right lower lobe\n- Amoxicillin\n- Tylenol, Motrin, fluids\n- Return precautions include increased work of breathing\n- Follow-Up: PRN\n[BOILERPLATE:ILLNESS]\n[BOILERPLATE:RESP]\n\n---\n\nDictation: \"ADHD combined type, increasing concerta from 18 to 27mg daily, placing counseling referral, follow up in three months\"\n\nADHD, combined\n- Concerta increased from 18mg to 27mg PO daily\n- Counseling referral placed\n- Follow-Up: 3 months\n[BOILERPLATE:PCMH]\n\n---\n\nDictation: \"well child check, growing and developing well, anticipatory guidance discussed, all questions addressed, follow up in one year\"\n\nWell Child Check\n- Growing and developing well\n- Anticipatory guidance discussed\n- Questions addressed\n- Follow-Up: 1 year/PRN\n[BOILERPLATE:WCC]`,
 
   boilerplate: [
     {
@@ -243,10 +139,10 @@ const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 
 async function initModel() {
   setStatus("loading", "Initializing models…");
-  showProgress(true, "Downloading models (LLM ~2.3GB, Whisper ~75MB)…", 0);
+  showProgress(true, "Downloading models (LLM ~2.3GB, Whisper ~1.5GB)…", 0);
 
-  pipeline("automatic-speech-recognition", "Xenova/whisper-tiny.en", {
-    device: "wasm",
+  pipeline("automatic-speech-recognition", "onnx-community/whisper-medium.en", {
+    device: "webgpu",
     progress_callback: (progress) => {
       if (progress.status === 'progress' && !isLLMReady) {
         showProgress(true, `Loading Whisper…`, Math.round(progress.progress || 0));
