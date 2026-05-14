@@ -63,7 +63,6 @@
 
     <div class="settings-body">
 
-
       <!-- SECTION: Model Selection -->
       <div class="settings-section">
         <div class="settings-section-header">
@@ -101,17 +100,37 @@
         <span class="settings-model-note" id="settingsModelNote" style="display:block;margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted,#888);"></span>
       </div>
 
+      <!-- SECTION: Medication Vocabulary -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
+          Medication Vocabulary
+        </div>
+        <p class="settings-section-desc">One medication name per line. During transcript cleanup, the LLM will use this list to correct phonetically garbled or misspelled drug names — especially when they appear near a dose or frequency. Add or remove terms based on what your practice commonly prescribes. No need to guess how Whisper mishears a word — the LLM will fuzzy-match against this list automatically.</p>
+        <label class="settings-label" for="settingMedicationVocabulary">
+          Medication list
+          <span class="settings-label-hint">One name per line — applied during Pass 1 transcript cleanup</span>
+        </label>
+        <textarea
+          class="settings-textarea settings-textarea-sm"
+          id="settingMedicationVocabulary"
+          spellcheck="false"
+          rows="8"
+          placeholder="amoxicillin&#10;azithromycin&#10;ibuprofen&#10;"
+        ></textarea>
+      </div>
+
       <!-- SECTION: System Prompts -->
       <div class="settings-section">
         <div class="settings-section-header">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>
           System Prompts
         </div>
-        <p class="settings-section-desc">These prompts are sent to the LLM on every request.</p>
+        <p class="settings-section-desc">These prompts are sent to the LLM on every request. The medication vocabulary above is appended to the cleanup prompt automatically — no need to add it here.</p>
 
         <label class="settings-label" for="settingCleanupPrompt">
           Pass 1 — Transcript Cleanup Prompt
-          <span class="settings-label-hint">Cleans raw ASR before structuring</span>
+          <span class="settings-label-hint">Cleans raw ASR before structuring. Medication vocabulary is appended automatically.</span>
         </label>
         <textarea class="settings-textarea settings-textarea-sm" id="settingCleanupPrompt" spellcheck="false" rows="5"></textarea>
 
