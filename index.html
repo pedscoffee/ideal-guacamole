@@ -15,19 +15,12 @@
 
   <header>
     <div class="logo">
-      <!-- Present gift box SVG logo -->
       <svg class="logo-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Present logo">
-        <!-- Box body -->
         <rect x="4" y="14" width="24" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
-        <!-- Box lid -->
         <rect x="2" y="10" width="28" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
-        <!-- Vertical ribbon on lid -->
         <rect x="14" y="10" width="4" height="5" rx="0" fill="currentColor" opacity="0.25"/>
-        <!-- Vertical ribbon on body -->
         <rect x="14" y="15" width="4" height="14" rx="0" fill="currentColor" opacity="0.25"/>
-        <!-- Bow left loop -->
         <path d="M16 10 C16 10 10 6 9 4 C8 2 10 1 12 3 C14 5 16 10 16 10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-        <!-- Bow right loop -->
         <path d="M16 10 C16 10 22 6 23 4 C24 2 22 1 20 3 C18 5 16 10 16 10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
       </svg>
       <span class="logo-text">Present</span>
@@ -38,11 +31,83 @@
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Loading model…</span>
       </div>
+      <!-- Settings gear button -->
+      <button class="btn-settings" id="btnSettings" onclick="openSettings()" aria-label="Open settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
     </div>
   </header>
 
   <!-- Autocopy toast -->
   <div class="autocopy-toast" id="autocopyToast" aria-live="polite"></div>
+
+  <!-- ===== SETTINGS DRAWER ===== -->
+  <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
+  <aside class="settings-drawer" id="settingsDrawer" aria-label="Settings" role="dialog" aria-modal="true">
+    <div class="settings-header">
+      <span class="panel-label">CONFIG</span>
+      <h2>Settings</h2>
+      <div class="settings-header-actions">
+        <button class="settings-btn-reset" id="btnResetSettings" onclick="resetSettings()" title="Reset all to defaults">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+          Reset defaults
+        </button>
+        <button class="settings-close" onclick="closeSettings()" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="settings-body">
+
+      <!-- SECTION: System Prompts -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>
+          System Prompts
+        </div>
+        <p class="settings-section-desc">These prompts are sent to the LLM on every request.</p>
+
+        <label class="settings-label" for="settingCleanupPrompt">
+          Pass 1 — Transcript Cleanup Prompt
+          <span class="settings-label-hint">Cleans raw ASR before structuring</span>
+        </label>
+        <textarea class="settings-textarea settings-textarea-sm" id="settingCleanupPrompt" spellcheck="false" rows="5"></textarea>
+
+        <label class="settings-label" for="settingMainPrompt">
+          Pass 2 — Note Generation Prompt
+          <span class="settings-label-hint">Structures the cleaned dictation into A&P notes. The boilerplate trigger list below is appended automatically — do not duplicate it here.</span>
+        </label>
+        <textarea class="settings-textarea settings-textarea-lg" id="settingMainPrompt" spellcheck="false" rows="18"></textarea>
+      </div>
+
+      <!-- SECTION: Boilerplate Entries -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Boilerplate Entries
+        </div>
+        <p class="settings-section-desc">Each entry has a <strong>key</strong> (used in <code>[BOILERPLATE:KEY]</code> tags), optional <strong>trigger phrases</strong> that tell the LLM when to emit the tag, and the <strong>boilerplate text</strong> injected into the output.</p>
+        <div class="boilerplate-list" id="boilerplateList"></div>
+        <button class="settings-btn-add" onclick="addBoilerplateEntry()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add boilerplate entry
+        </button>
+      </div>
+
+    </div>
+
+    <div class="settings-footer">
+      <button class="btn-settings-save" onclick="saveSettings()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+        Save &amp; Apply
+      </button>
+      <span class="settings-save-status" id="settingsSaveStatus"></span>
+    </div>
+  </aside>
 
   <main>
     <div class="workspace">
@@ -51,7 +116,7 @@
       <section class="panel panel-input">
         <div class="panel-header">
           <span class="panel-label">INPUT</span>
-          <h2>Assessment & Plan</h2>
+          <h2>Assessment &amp; Plan</h2>
         </div>
 
         <div class="input-mode-tabs">
@@ -85,7 +150,6 @@
 
           <div class="transcript-box" id="transcriptBox">
             <div class="transcript-label" id="transcriptLabel">Transcript</div>
-            <!-- textarea replaces the old div so the user can edit after transcription -->
             <textarea
               class="transcript-text"
               id="transcriptText"
