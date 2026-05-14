@@ -1146,3 +1146,175 @@ footer a:hover { color: var(--green); }
   transition: opacity 0.3s;
 }
 .settings-save-status.visible { opacity: 1; }
+
+/* ===================== PER-PROBLEM COPY BUTTONS ===================== */
+
+/* Problem title row: flex so copy btn sits at the far right */
+.problem-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.problem-title-row .problem-title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Per-problem copy button — hidden by default, shown on hover */
+.btn-copy-problem {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  pointer-events: none;
+}
+
+.problem-block:hover .btn-copy-problem,
+.problem-block:focus-within .btn-copy-problem {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.btn-copy-problem:hover {
+  color: var(--green);
+  background: var(--green-glow-sm);
+  border-color: var(--border-bright);
+}
+
+.btn-copy-problem.copied {
+  color: var(--green);
+  background: var(--green-glow-sm);
+  border-color: var(--green-dim);
+}
+
+/* Keep contenteditable from consuming clicks on copy button */
+.problem-block[contenteditable="true"] .btn-copy-problem {
+  pointer-events: auto;
+}
+
+/* ===================== SPLIT COPY BUTTON (Copy All + Dropdown) ===================== */
+
+.copy-split-btn {
+  display: flex;
+  align-items: center;
+  position: relative;
+  border-radius: 6px;
+  overflow: visible;
+}
+
+.btn-copy.btn-copy-main {
+  border-radius: 6px 0 0 6px;
+  border-right: 1px solid rgba(0, 229, 160, 0.2);
+  padding: 0.3rem 0.65rem;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.btn-copy.btn-copy-chevron {
+  border-radius: 0 6px 6px 0;
+  padding: 0.3rem 0.45rem;
+  min-width: 26px;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+}
+
+.btn-copy.btn-copy-chevron svg {
+  transition: transform 0.18s ease;
+}
+
+.btn-copy.btn-copy-chevron[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+/* Dropdown menu */
+.copy-dropdown {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  min-width: 200px;
+  max-width: 280px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  z-index: 500;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.copy-dropdown.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.copy-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copy-dropdown-item:hover {
+  background: var(--green-glow-sm);
+  color: var(--green);
+}
+
+.copy-dropdown-all {
+  color: var(--text-bright);
+  font-size: 0.72rem;
+}
+
+.copy-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+.copy-dropdown-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--border-bright);
+  color: var(--text-dim);
+  font-size: 0.62rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.copy-dropdown-item:hover .copy-dropdown-num {
+  background: var(--green-dim);
+  color: var(--bg);
+}

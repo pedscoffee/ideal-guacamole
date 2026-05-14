@@ -510,6 +510,7 @@ window.processNote = async function() {
   const streaming = document.getElementById("outputStreaming");
   const streamText = document.getElementById("streamText");
   const btnCopy = document.getElementById("btnCopy");
+  const btnCopyGroup = document.getElementById("btnCopyGroup");
   const editHint = document.getElementById("editHint");
   const thinkLabel = document.querySelector(".thinking-label");
 
@@ -518,6 +519,7 @@ window.processNote = async function() {
   content.contentEditable = "false";
   streaming.style.display = "block";
   btnCopy.style.display = "none";
+  if (btnCopyGroup) btnCopyGroup.style.display = "none";
   editHint.style.display = "none";
   streamText.textContent = "";
   document.getElementById("btnProcess").disabled = true;
@@ -580,6 +582,7 @@ window.processNote = async function() {
 
     streaming.style.display = "none";
     renderOutput(processedText);
+    if (btnCopyGroup) btnCopyGroup.style.display = "flex";
     btnCopy.style.display = "flex";
     editHint.style.display = "flex";
     window._rawOutput = processedText;
@@ -610,6 +613,7 @@ function renderOutput(raw) {
   let currentBlock = null;
   let currentItems = null;
   let blockCount = 0;
+  let problemCount = 0;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -629,15 +633,36 @@ function renderOutput(raw) {
       blockCount++;
       requestAnimationFrame(() => { bp.style.opacity = "1"; });
     } else if (!isBullet) {
+      problemCount++;
+      const pIdx = problemCount;
+
       const block = document.createElement("div");
       block.className = "problem-block";
+      block.dataset.problemIndex = pIdx;
       block.style.animationDelay = `${blockCount * 0.08}s`;
       block.style.opacity = "0";
+
+      const titleRow = document.createElement("div");
+      titleRow.className = "problem-title-row";
 
       const title = document.createElement("div");
       title.className = "problem-title";
       title.textContent = trimmed;
-      block.appendChild(title);
+      titleRow.appendChild(title);
+
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "btn-copy-problem";
+      copyBtn.setAttribute("aria-label", "Copy this problem block");
+      copyBtn.title = "Copy this problem";
+      copyBtn.dataset.problemIndex = pIdx;
+      copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyProblemBlock(block, copyBtn);
+      });
+      titleRow.appendChild(copyBtn);
+
+      block.appendChild(titleRow);
 
       const ul = document.createElement("ul");
       ul.className = "problem-items";
@@ -658,9 +683,24 @@ function renderOutput(raw) {
   if (blockCount === 0) {
     content.innerHTML = `<pre style="font-family:var(--font-mono);font-size:0.8rem;line-height:1.8;color:var(--text);padding:1rem;white-space:pre-wrap">${raw}</pre>`;
   }
+
+  // Update the dropdown after render
+  updateCopyDropdown();
 }
 
 // ─── Copy ─────────────────────────────────────────────────────────────────
+
+// Shared flash-feedback for any copy button
+function flashCopied(btn, resetHTML) {
+  btn.classList.add("copied");
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>`;
+  setTimeout(() => {
+    btn.classList.remove("copied");
+    btn.innerHTML = resetHTML;
+  }, 1800);
+}
+
+// Copy all problems (used by main "Copy All" button)
 window.copyOutput = function() {
   const text = getCurrentOutputText() || window._rawOutput || "";
   navigator.clipboard.writeText(text).then(() => {
@@ -669,10 +709,102 @@ window.copyOutput = function() {
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
     setTimeout(() => {
       btn.classList.remove("copied");
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy`;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy All`;
     }, 2000);
   });
 };
+
+// Extract plain text from a single problem-block element
+function getProblemBlockText(block) {
+  const lines = [];
+  const title = block.querySelector(".problem-title");
+  if (title) lines.push(title.textContent.trim());
+  const items = block.querySelectorAll(".problem-items li");
+  items.forEach(li => lines.push("- " + li.textContent.trim()));
+  return lines.join("\n");
+}
+
+// Copy a single problem block — called from inline copy buttons
+function copyProblemBlock(block, btn) {
+  const text = getProblemBlockText(block);
+  const resetHTML = btn.innerHTML;
+  navigator.clipboard.writeText(text).then(() => {
+    flashCopied(btn, resetHTML);
+    showAutocopyToast("✓ Problem copied");
+  }).catch(() => {});
+}
+
+// Copy a single problem by index (1-based) — called from dropdown
+window.copyProblemByIndex = function(idx) {
+  const block = document.querySelector(`.problem-block[data-problem-index="${idx}"]`);
+  if (!block) return;
+  const text = getProblemBlockText(block);
+  navigator.clipboard.writeText(text).then(() => {
+    showAutocopyToast("✓ Problem " + idx + " copied");
+    closeCopyDropdown();
+  }).catch(() => {});
+};
+
+// Build/refresh the dropdown with one entry per problem block
+function updateCopyDropdown() {
+  const dropdown = document.getElementById("copyDropdown");
+  if (!dropdown) return;
+  dropdown.innerHTML = "";
+
+  const blocks = document.querySelectorAll(".problem-block");
+
+  // "Copy All" option at top
+  const allOpt = document.createElement("button");
+  allOpt.className = "copy-dropdown-item copy-dropdown-all";
+  allOpt.setAttribute("role", "option");
+  allOpt.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy All`;
+  allOpt.addEventListener("click", () => { copyOutput(); closeCopyDropdown(); });
+  dropdown.appendChild(allOpt);
+
+  if (blocks.length > 1) {
+    const divider = document.createElement("div");
+    divider.className = "copy-dropdown-divider";
+    dropdown.appendChild(divider);
+
+    blocks.forEach((block, i) => {
+      const titleEl = block.querySelector(".problem-title");
+      const label = titleEl ? titleEl.textContent.trim() : `Problem ${i + 1}`;
+      const shortLabel = label.length > 34 ? label.slice(0, 32) + "…" : label;
+
+      const opt = document.createElement("button");
+      opt.className = "copy-dropdown-item";
+      opt.setAttribute("role", "option");
+      opt.dataset.problemIndex = i + 1;
+      opt.innerHTML = `<span class="copy-dropdown-num">${i + 1}</span>${shortLabel}`;
+      opt.addEventListener("click", () => window.copyProblemByIndex(i + 1));
+      dropdown.appendChild(opt);
+    });
+  }
+}
+
+// Toggle dropdown visibility
+window.toggleCopyDropdown = function(e) {
+  e.stopPropagation();
+  const dropdown = document.getElementById("copyDropdown");
+  const chevron = document.getElementById("btnCopyChevron");
+  const isOpen = dropdown.classList.contains("open");
+  if (isOpen) {
+    closeCopyDropdown();
+  } else {
+    dropdown.classList.add("open");
+    chevron.setAttribute("aria-expanded", "true");
+  }
+};
+
+function closeCopyDropdown() {
+  const dropdown = document.getElementById("copyDropdown");
+  const chevron = document.getElementById("btnCopyChevron");
+  if (dropdown) dropdown.classList.remove("open");
+  if (chevron) chevron.setAttribute("aria-expanded", "false");
+}
+
+// Close dropdown when clicking outside
+document.addEventListener("click", () => closeCopyDropdown());
 
 // ─── Clear ────────────────────────────────────────────────────────────────
 window.clearAll = function() {
@@ -694,6 +826,7 @@ window.clearAll = function() {
 
   document.getElementById("outputStreaming").style.display = "none";
   document.getElementById("btnCopy").style.display = "none";
+  const _cg2 = document.getElementById("btnCopyGroup"); if (_cg2) _cg2.style.display = "none";
   document.getElementById("editHint").style.display = "none";
 
   const area = document.getElementById("outputArea");
