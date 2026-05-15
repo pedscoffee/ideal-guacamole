@@ -25,7 +25,7 @@ const WHISPER_MODELS = {
 const DEFAULTS = {
   llmModel: "Qwen3-4B-q4f16_1-MLC",
   whisperModel: "Xenova/whisper-small.en",
-  medicationVocabulary: [
+  termVocabulary: [
     "amoxicillin",
     "rocephin",
     "augmentin",
@@ -58,12 +58,17 @@ function loadSettings() {
     if (!raw) return structuredClone(DEFAULTS);
     const saved = JSON.parse(raw);
     return {
-      llmModel:             saved.llmModel             ?? DEFAULTS.llmModel,
-      whisperModel:         saved.whisperModel         ?? DEFAULTS.whisperModel,
-      medicationVocabulary: Array.isArray(saved.medicationVocabulary) ? saved.medicationVocabulary : structuredClone(DEFAULTS.medicationVocabulary),
-      cleanupPrompt:        saved.cleanupPrompt        ?? DEFAULTS.cleanupPrompt,
-      mainPrompt:           saved.mainPrompt           ?? DEFAULTS.mainPrompt,
-      boilerplate:          Array.isArray(saved.boilerplate) ? saved.boilerplate : structuredClone(DEFAULTS.boilerplate)
+      llmModel:      saved.llmModel      ?? DEFAULTS.llmModel,
+      whisperModel:  saved.whisperModel  ?? DEFAULTS.whisperModel,
+      // support both old key (medicationVocabulary) and new key (termVocabulary) gracefully
+      termVocabulary: Array.isArray(saved.termVocabulary)
+        ? saved.termVocabulary
+        : Array.isArray(saved.medicationVocabulary)
+          ? saved.medicationVocabulary
+          : structuredClone(DEFAULTS.termVocabulary),
+      cleanupPrompt: saved.cleanupPrompt ?? DEFAULTS.cleanupPrompt,
+      mainPrompt:    saved.mainPrompt    ?? DEFAULTS.mainPrompt,
+      boilerplate:   Array.isArray(saved.boilerplate) ? saved.boilerplate : structuredClone(DEFAULTS.boilerplate)
     };
   } catch { return structuredClone(DEFAULTS); }
 }
@@ -89,10 +94,10 @@ function buildBoilerplateTriggerList() {
 }
 function getCleanupSystemPrompt() {
   let base = settings.cleanupPrompt;
-  const vocab = (settings.medicationVocabulary || []).map(v => v.trim()).filter(Boolean);
+  const vocab = (settings.termVocabulary || []).map(v => v.trim()).filter(Boolean);
   if (vocab.length > 0) {
-    const list = vocab.map(m => `- ${m}`).join("\n");
-    base += `\n\n# MEDICATION VOCABULARY ANCHORING\nThe following medications are commonly used in this practice. If you encounter any word that appears phonetically garbled, oddly spelled, or out of place — especially near a dose or frequency — check whether it could plausibly be one of the medications below and correct it if confident. If uncertain, preserve the original word rather than guessing.\n\n${list}`;
+    const list = vocab.map(t => `- ${t}`).join("\n");
+    base += `\n\n# MEDICAL TERMINOLOGY ANCHORING\nThe following terms are commonly used in this clinical setting. If you encounter any word that appears phonetically garbled, oddly spelled, or out of place in a medical context, check whether it could plausibly be one of the terms below and correct it if confident. If uncertain, preserve the original word rather than guessing.\n\n${list}`;
   }
   return base;
 }
@@ -514,7 +519,7 @@ window.closeSettings = function() {
 function populateSettingsUI() {
   document.getElementById("settingLLMModel").value = settings.llmModel;
   document.getElementById("settingWhisperModel").value = settings.whisperModel;
-  document.getElementById("settingMedicationVocabulary").value = (settings.medicationVocabulary || []).join("\n");
+  document.getElementById("settingTermVocabulary").value = (settings.termVocabulary || []).join("\n");
   document.getElementById("settingCleanupPrompt").value = settings.cleanupPrompt;
   document.getElementById("settingMainPrompt").value = settings.mainPrompt;
   renderBoilerplateList();
@@ -568,7 +573,7 @@ window.addBoilerplateEntry = function() {
 window.saveSettings = function() {
   settings.llmModel      = document.getElementById("settingLLMModel").value;
   settings.whisperModel  = document.getElementById("settingWhisperModel").value;
-  settings.medicationVocabulary = document.getElementById("settingMedicationVocabulary").value
+  settings.termVocabulary = document.getElementById("settingTermVocabulary").value
     .split("\n").map(s => s.trim()).filter(Boolean);
   settings.cleanupPrompt = document.getElementById("settingCleanupPrompt").value;
   settings.mainPrompt    = document.getElementById("settingMainPrompt").value;
