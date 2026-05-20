@@ -729,11 +729,38 @@ main {
   max-height: 340px;
   overflow: auto;
   white-space: pre-wrap;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
   line-height: 1.7;
   color: var(--text);
   padding: 0.85rem;
+  transition: background 0.2s;
+}
+
+.pipeline-step-text[contenteditable="true"]:focus {
+  background: rgba(0, 229, 160, 0.02);
+}
+
+.pipeline-step-text strong {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+.pipeline-step-text em {
+  color: var(--text);
+  font-style: italic;
+}
+
+.pipeline-step-text ul,
+.pipeline-step-text ol {
+  margin: 0.25rem 0 0.65rem 1.2rem;
+  padding-left: 0.8rem;
+}
+
+.pipeline-step-text li {
+  margin: 0.18rem 0;
+  padding-left: 0.15rem;
 }
 
 .pipeline-step-copy:disabled {

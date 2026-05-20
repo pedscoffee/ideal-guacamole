@@ -743,6 +743,49 @@ function resetPipelineStepOutputs() {
   container.innerHTML = "";
   container.style.display = "none";
 }
+function renderPipelineRichText(raw) {
+  function inlineMarkdown(text) {
+    return escHtml(text)
+      .replace(/\*\*([^*\n][\s\S]*?[^*\n])\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+      .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1<em>$2</em>");
+  }
+
+  const html = [];
+  let listType = null;
+  const closeList = () => {
+    if (listType) html.push(`</${listType}>`);
+    listType = null;
+  };
+
+  for (const line of raw.split("\n")) {
+    const bullet = line.match(/^\s*[-*•]\s+(.+)$/);
+    const numbered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (!line.trim()) {
+      closeList();
+      html.push("<div><br></div>");
+    } else if (bullet) {
+      if (listType !== "ul") {
+        closeList();
+        html.push("<ul>");
+        listType = "ul";
+      }
+      html.push(`<li>${inlineMarkdown(bullet[1])}</li>`);
+    } else if (numbered) {
+      if (listType !== "ol") {
+        closeList();
+        html.push("<ol>");
+        listType = "ol";
+      }
+      html.push(`<li>${inlineMarkdown(numbered[1])}</li>`);
+    } else {
+      closeList();
+      html.push(`<div>${inlineMarkdown(line)}</div>`);
+    }
+  }
+  closeList();
+  return html.join("");
+}
 function renderPipelineStepOutput(step, text = "", state = "streaming") {
   const container = getPipelineStepsContainer();
   if (!container) return null;
@@ -764,12 +807,14 @@ function renderPipelineStepOutput(step, text = "", state = "streaming") {
           Copy
         </button>
       </div>
-      <pre class="pipeline-step-text"></pre>
+      <div class="pipeline-step-text" contenteditable="false" spellcheck="true"></div>
     `;
     container.appendChild(box);
   }
   box.querySelector(".pipeline-step-title").textContent = step.label || "Pipeline Step";
-  box.querySelector(".pipeline-step-text").textContent = text;
+  const textEl = box.querySelector(".pipeline-step-text");
+  textEl.innerHTML = renderPipelineRichText(text);
+  textEl.contentEditable = state === "done" ? "true" : "false";
   box.classList.toggle("is-streaming", state === "streaming");
   box.classList.toggle("is-error", state === "error");
   const status = box.querySelector(".pipeline-step-status");
@@ -785,11 +830,13 @@ function renderPipelineStepOutput(step, text = "", state = "streaming") {
 }
 async function copyPipelineStepOutput(stepId, btn) {
   const box = document.querySelector(`[data-step-id="${CSS.escape(stepId)}"]`);
-  const text = box?.querySelector(".pipeline-step-text")?.textContent || "";
+  const textEl = box?.querySelector(".pipeline-step-text");
+  const text = textEl?.innerText || textEl?.textContent || "";
   if (!text.trim()) return;
+  const html = textEl?.innerHTML || escHtml(text);
   const resetHTML = btn.innerHTML;
   try {
-    await navigator.clipboard.writeText(text);
+    await copyToClipboardRich(text, `<div>${html}</div>`);
     flashCopied(btn, resetHTML);
     showAutocopyToast("\u2713 Step copied");
   } catch {}
