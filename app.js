@@ -25,9 +25,6 @@ const WHISPER_MODELS = {
 const DEFAULTS = {
   llmModel: "Qwen3-4B-q4f16_1-MLC",
   whisperModel: "Xenova/whisper-small.en",
-  ephemeralMode: true,
-  deidentifyInput: false,
-  autoCopyOutput: false,
   termVocabulary: [
     "amoxicillin",
     "rocephin",
@@ -63,9 +60,6 @@ function loadSettings() {
     return {
       llmModel:      saved.llmModel      ?? DEFAULTS.llmModel,
       whisperModel:  saved.whisperModel  ?? DEFAULTS.whisperModel,
-      ephemeralMode: saved.ephemeralMode ?? DEFAULTS.ephemeralMode,
-      deidentifyInput: saved.deidentifyInput ?? DEFAULTS.deidentifyInput,
-      autoCopyOutput: saved.autoCopyOutput ?? DEFAULTS.autoCopyOutput,
       // support both old key (medicationVocabulary) and new key (termVocabulary) gracefully
       termVocabulary: Array.isArray(saved.termVocabulary)
         ? saved.termVocabulary
@@ -116,66 +110,12 @@ let engine = null, transcriber = null;
 let isLLMReady = false, isWhisperReady = false, isModelReady = false;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let transcript = "", timerInterval = null, timerSeconds = 0, currentTab = "mic";
-window._rawOutput = "";
-
-function setPrivacyStatus(text = "") {
-  const badge = document.getElementById("privacyStatus");
-  if (!badge) return;
-  const parts = [];
-  parts.push(settings.ephemeralMode ? "Ephemeral" : "Settings saved");
-  if (settings.deidentifyInput) parts.push("De-ID");
-  if (!settings.autoCopyOutput) parts.push("Clipboard manual");
-  badge.textContent = text || parts.join(" / ");
-  badge.title = settings.ephemeralMode
-    ? "Clinical text is kept in page memory only and cleared when you clear, reload, or close the tab."
-    : "Settings persist in this browser. Clinical input/output is still not written by the app.";
-}
-
-function notifyServiceWorker(message) {
-  if (!navigator.serviceWorker?.controller) return;
-  navigator.serviceWorker.controller.postMessage(message);
-}
-
-async function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
-  try {
-    const registration = await navigator.serviceWorker.register("./service-worker.js");
-    if (registration.active && !navigator.serviceWorker.controller) {
-      setPrivacyStatus("Offline shell ready after reload");
-    }
-  } catch (err) {
-    console.warn("Service worker registration failed:", err);
-  }
-}
-
-function activateNetworkLockdown() {
-  notifyServiceWorker({ type: "SET_NETWORK_LOCKDOWN", enabled: true });
-  setPrivacyStatus("Models ready / network locked");
-}
-
-function redactIdentifiers(text) {
-  return text
-    .replace(/\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g, "[SSN]")
-    .replace(/\b(?:MRN|medical record number)\s*[:#-]?\s*[A-Z0-9-]+\b/gi, "[MRN]")
-    .replace(/\b(?:DOB|date of birth)\s*[:#-]?\s*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/gi, "[DOB]")
-    .replace(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g, "[DATE]")
-    .replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "[PHONE]")
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[EMAIL]")
-    .replace(/\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Court|Ct|Way|Place|Pl)\b\.?/gi, "[ADDRESS]");
-}
-
-function clearSensitiveMemory() {
-  transcript = "";
-  audioChunks = [];
-  window._rawOutput = "";
-}
 
 function checkModelsReady() {
   if (isLLMReady && isWhisperReady) {
     isModelReady = true;
     setStatus("ready", "Models ready");
     showProgress(false);
-    activateNetworkLockdown();
     updateProcessBtn();
   }
 }
@@ -354,11 +294,10 @@ function getCurrentOutputText() {
 // ─── Process Note ─────────────────────────────────────────────────────────
 window.processNote = async function() {
   if (!isModelReady || !engine) return;
-  let input = currentTab === "mic"
+  const input = currentTab === "mic"
     ? document.getElementById("transcriptText").value.trim()
     : document.getElementById("textInput").value.trim();
   if (!input) return;
-  if (settings.deidentifyInput) input = redactIdentifiers(input);
   const empty = document.getElementById("outputEmpty");
   const content = document.getElementById("outputContent");
   const streaming = document.getElementById("outputStreaming");
@@ -410,9 +349,7 @@ window.processNote = async function() {
     btnCopy.style.display = "flex"; editHint.style.display = "flex";
     window._rawOutput = processedText;
     setTimeout(() => { content.contentEditable = "true"; }, 200);
-    if (settings.autoCopyOutput) {
-      setTimeout(() => { autoCopyToClipboard(processedText); }, 400);
-    }
+    setTimeout(() => { autoCopyToClipboard(processedText); }, 400);
   } catch (err) {
     console.error("Generation error:", err);
     streaming.style.display = "none";
@@ -538,7 +475,7 @@ document.addEventListener("click", () => closeCopyDropdown());
 
 // ─── Clear ────────────────────────────────────────────────────────────────
 window.clearAll = function() {
-  clearSensitiveMemory();
+  transcript = "";
   const ta = document.getElementById("transcriptText");
   ta.value = ""; ta.placeholder = "Your words will appear here as you speak\u2026";
   ta.readOnly = true; ta.classList.remove("is-editable"); ta.oninput = null;
@@ -582,9 +519,6 @@ window.closeSettings = function() {
 function populateSettingsUI() {
   document.getElementById("settingLLMModel").value = settings.llmModel;
   document.getElementById("settingWhisperModel").value = settings.whisperModel;
-  document.getElementById("settingEphemeralMode").checked = !!settings.ephemeralMode;
-  document.getElementById("settingDeidentifyInput").checked = !!settings.deidentifyInput;
-  document.getElementById("settingAutoCopyOutput").checked = !!settings.autoCopyOutput;
   document.getElementById("settingTermVocabulary").value = (settings.termVocabulary || []).join("\n");
   document.getElementById("settingCleanupPrompt").value = settings.cleanupPrompt;
   document.getElementById("settingMainPrompt").value = settings.mainPrompt;
@@ -639,15 +573,11 @@ window.addBoilerplateEntry = function() {
 window.saveSettings = function() {
   settings.llmModel      = document.getElementById("settingLLMModel").value;
   settings.whisperModel  = document.getElementById("settingWhisperModel").value;
-  settings.ephemeralMode = document.getElementById("settingEphemeralMode").checked;
-  settings.deidentifyInput = document.getElementById("settingDeidentifyInput").checked;
-  settings.autoCopyOutput = document.getElementById("settingAutoCopyOutput").checked;
   settings.termVocabulary = document.getElementById("settingTermVocabulary").value
     .split("\n").map(s => s.trim()).filter(Boolean);
   settings.cleanupPrompt = document.getElementById("settingCleanupPrompt").value;
   settings.mainPrompt    = document.getElementById("settingMainPrompt").value;
   const ok = saveSettingsToStorage(settings);
-  setPrivacyStatus();
   const status = document.getElementById("settingsSaveStatus");
   status.textContent = ok ? "\u2713 Saved \u2014 click Reload Models to apply model changes" : "\u26a0 Could not persist (storage blocked)";
   status.classList.add("visible");
@@ -657,7 +587,6 @@ window.resetSettings = function() {
   if (!confirm("Reset all settings to defaults? This cannot be undone.")) return;
   settings = structuredClone(DEFAULTS);
   saveSettingsToStorage(settings);
-  setPrivacyStatus();
   populateSettingsUI();
   const status = document.getElementById("settingsSaveStatus");
   status.textContent = "\u2713 Reset to defaults \u2014 click Reload Models to apply";
@@ -669,10 +598,4 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────
-setPrivacyStatus();
-registerServiceWorker();
-window.addEventListener("beforeunload", () => {
-  notifyServiceWorker({ type: "SET_NETWORK_LOCKDOWN", enabled: false });
-  if (settings.ephemeralMode) clearSensitiveMemory();
-});
 initModel();
