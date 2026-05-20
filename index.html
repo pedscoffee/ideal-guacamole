@@ -159,6 +159,26 @@
         <textarea class="settings-textarea settings-textarea-lg" id="settingMainPrompt" spellcheck="false" rows="18"></textarea>
       </div>
 
+      <!-- SECTION: Extra Pipeline Steps -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M17 14l3 3-3 3"/></svg>
+          Extra Pipeline Steps
+        </div>
+        <p class="settings-section-desc">Optional prompts run after the main note is generated. Each enabled step gets its own output box with a separate copy button.</p>
+        <div class="pipeline-actions">
+          <button class="settings-btn-add pipeline-btn-inline" onclick="addPipelineStep()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add step
+          </button>
+          <button class="settings-btn-add pipeline-btn-inline" onclick="openPipelineLibrary()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg>
+            Browse library
+          </button>
+        </div>
+        <div class="pipeline-steps-list" id="pipelineStepsList"></div>
+      </div>
+
       <!-- SECTION: Boilerplate Entries -->
       <div class="settings-section">
         <div class="settings-section-header">
@@ -183,6 +203,22 @@
       <span class="settings-save-status" id="settingsSaveStatus"></span>
     </div>
   </aside>
+
+  <div class="pipeline-library-modal" id="pipelineLibraryModal" role="dialog" aria-modal="true" aria-label="Prompt library">
+    <div class="pipeline-library-backdrop" onclick="closePipelineLibrary()"></div>
+    <div class="pipeline-library-panel">
+      <div class="pipeline-library-header">
+        <div>
+          <span class="panel-label">LIBRARY</span>
+          <h2>Prompt Templates</h2>
+        </div>
+        <button class="settings-close" onclick="closePipelineLibrary()" aria-label="Close prompt library">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="pipeline-library-grid" id="pipelineLibraryGrid"></div>
+    </div>
+  </div>
 
   <main>
     <div class="workspace">
@@ -287,6 +323,7 @@
             <p>Structured notes will appear here after processing</p>
           </div>
           <div class="output-content" id="outputContent" style="display:none" contenteditable="false"></div>
+          <div class="pipeline-steps-output" id="pipelineStepsOutput" style="display:none"></div>
           <div class="output-streaming" id="outputStreaming" style="display:none">
             <div class="thinking-label">
               <span class="think-dot"></span>

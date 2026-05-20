@@ -21,6 +21,192 @@ const WHISPER_MODELS = {
   "Xenova/whisper-medium.en": { label: "Whisper Medium", size: "~1.5 GB", device: "wasm" },
 };
 
+const PIPELINE_LIBRARY = [
+  {
+    id: "avs",
+    title: "ETA: After Visit Summary (AVS) Generation",
+    label: "AVS / Sign-Off",
+    description: "Generates personalized sign-offs + actionable family to-do lists. Change few shot examples to match what you see and your voice.",
+    specialty: "Pediatrics (Easy to change)",
+    category: "Documentation",
+    order: 5,
+    inputSource: "noteOutput",
+    prompt: `Sign-Off & Family To-Do Generator
+Generate two components: 3 personalized sign-off options and a family to-do list.
+
+PART 1: PERSONALIZED SIGN-OFFS
+Create 3 brief, warm sign-off options matching visit context.
+Structure: [Personal touch/acknowledgment], [well-wish or next step]. [Closing]
+Guidelines:
+·	Warm and genuine, never formulaic
+·	Acknowledge something specific when possible
+·	Match emotional tone to visit type
+·	Keep <=25 words total
+·	Balance professional with personable
+·	Reference activities, interests, milestones if mentioned
+·	For difficult visits: acknowledge courage, effort, or partnership
+Visit-Specific Approaches:
+Well visits/milestones: Celebrate growth, reference developmental milestones Sick visits: Empathize, offer comfort suggestion, reassure about calling Chronic conditions: Acknowledge effort, emphasize partnership Behavioral/mental health: Acknowledge courage, normalize seeking help Complex/concerning: Name plan clearly, offer availability Referrals: Acknowledge next step, reassure continuity
+Examples:
+5yo female well visit, starting kindergarten, plays soccer:
+Great seeing y'all today! Good luck with soccer and kindergarten! Excited for you!
+She is going to do great in kindergarten. Can't wait to hear about it next visit!
+What an exciting year ahead! We're here if you need anything.
+Male, Viral laryngitis, strep pending, difficult hydrating:
+Drink lots of fluids! Popsicles are my favorite when sick. Call if not improving.
+Hope he feels better soon. Those popsicles should help. We'll call with results tomorrow.
+It is hard when they feel so crummy. Keep offering fluids and call if he's not gettting better. We're here!
+Female, New ADHD diagnosis, parent emotional, starting medication:
+It takes courage to have this conversation-thank you for advocating for her! We're here to support you.
+You're doing the right thing getting her help. We'll partner with you every step. Call anytime.
+A new diagnosis can feel overwhelming, but we'll take it step by step. We're here for you.
+Male, Asthma exacerbation, previous PICU admission, pulmonology referral:
+We'll get him to Pulmonology to help get on top of all of this. Call if anything changes-we're here.
+It is scary navigating all of this after your experiences. The specialist will help us care for him. Please call with any concerns.
+You're doing everything right seeking care early. Don't hesitate to reach out.
+Key Elements to Extract: Patient name, activities/hobbies, school transitions, specific treatments, emotional tone, referrals, chronic conditions, parent effort, family context
+Output:
+{Personalized sign off specific to visit}
+{Personalizes sign off emphasizing relationship}
+{Personalized sign off forward-looking/supportive}
+
+PART 2: FAMILY TO-DO LIST
+Extract actionable items into simple checklist. Include only concrete next steps with essential details.
+Format:
+Your To-Do List:
+Prescriptions:
+·	[If none: omit "No new prescriptions today."]
+Tests/Results:
+·	[Test]: Results pending, we will call [timeframe] [If none: omit section]
+Appointments:
+·	Schedule [specialty] appointment
+·	Return to clinic in [timeframe] [If none: "No appointments to schedule today."]
+
+Rules:
+1.	Simple dashes for bullets
+2.	One item per line, <=12 words
+3.	Only items requiring family action
+4.	Be specific about timeframes
+5.	Bold section headers
+6.	No explanations, just actions
+7.	Extract from note only
+8.  Indent all bullets with 8 spaces followed by simple dash
+Examples:
+Viral laryngitis, strep pending, acetaminophen, follow up 7 days if no improvement:
+Your To-Do List:
+Tests/Results:
+·	Strep test: Results pending, we will call tomorrow
+Appointments:
+·	Return to clinic if no improvement in 7 days
+Asthma exacerbation, Flovent and albuterol started, pulmonology referral, 3-month follow-up:
+Your To-Do List:
+Prescriptions:
+·	Flovent with spacer
+·	Albuterol inhaler as needed for wheezing/coughing
+Appointments:
+·	Schedule Pulmonology appointment
+·	Return to clinic in 3 months for asthma check
+Include: All new/changed prescriptions, pending test results, referrals needing scheduling, specific return timeframes, concrete action items
+Exclude: General advice (fluids, rest), warning signs, explanations, background info
+
+COMPLETE OUTPUT
+{Personalized sign off specific to visit}
+{Personalizes sign off emphasizing relationship}
+{Personalized sign off forward-looking/supportive}
+
+To-Do List:
+Prescriptions: [list or "No new prescriptions today."]
+Tests/Results: [list or omit if none]
+Appointments: [list or "No appointments to schedule today."]`
+  },
+  {
+    id: "billing",
+    title: "Billing Analysis",
+    label: "Billing Analysis",
+    description: "Assesses MDM components and suggests CPT E/M codes with detailed reasoning.",
+    specialty: "Pediatrics (adaptable but may need some work)",
+    category: "Administrative",
+    order: 6,
+    inputSource: "noteOutput",
+    prompt: `Analyze this note and determine the appropriate CPT E/M billing code using 2021 E/M guidelines for an ESTABLISHED patient.
+MDM Component Assessment
+A. PROBLEMS ADDRESSED
+·   Straightforward: 1 self-limited/minor problem
+·   Low: 2+ self-limited/minor problems OR 1 stable chronic illness OR 1 acute uncomplicated illness
+·   Moderate: Chronic illness with exacerbation/progression OR 2+ stable chronic illnesses OR undiagnosed new problem OR acute illness with systemic symptoms OR acute complicated injury
+·   High: Chronic illness with severe exacerbation OR illness posing threat to life/bodily function
+B. DATA COMPLEXITY
+·   Low: Assessment requires independent historian, None or one piece of data reviewed/ordered along with
+·   Moderate: Any combination of two tests ordered, test results reviewed, or prior external notes reviewed along with assessment requiring an independent historian
+·   High: Meets criteria for Moderate AND discussion with external physician regarding interpretation of tests OR independent test interpretation
+C. RISK LEVEL
+·   Minimal: Minimal risk from testing/treatment
+·   Low: OTC medications, rest, observation
+·   Moderate: Prescription drugs, Dx or Rx limited by social factors
+·   High: Decision regarding hospitalization
+2-of-3 Rule
+Overall MDM = level met by at least 2 of 3 components.
+·   Straightforward = 99212
+·   Low = 99213
+·   Moderate = 99214
+·   High = 99215
+Modifier 25 Check
+Add modifier 25 for a separately identifiable E/M service during a Well Child Check/Routine child health examination.
+Output Format
+Problems: [Level] [Brief explanation]
+Data: [Level] [What was reviewed/ordered]
+Risk: [Level] [Treatment risk level and why]
+MDM Score: Problems ([Level]) + Data ([Level]) + Risk ([Level]) = [Overall Level] (based on 2 of 3)
+Final Code: 99XXX
+Modifier 25 Format:
+Modifier 25: Well visit with separate E/M for:
+ - [Problem 1] ([brief intervention])
+ - [Problem 2] ([brief intervention])
+Critical Coding Rules
+1. Ordering any culture (e.g., strep, urine) implies consideration of prescription management and elevates Risk to at least Moderate.
+2. Acute illness with systemic symptoms + any culture ordered = 99214 (Moderate Problems + Moderate Data + Moderate Risk).
+3. Assume Assessment requiring an independent historian is always true.
+Examples
+Viral URI (simple) Runny nose, cough. Exam: clear. Plan: supportive care.
+Problems: Low (1 acute uncomplicated) Data: Minimal Risk: Low (supportive care only) MDM Score: Problems (Low) + Data (Minimal) + Risk (Low) = Straightforward (based on 2 of 3) Final Code: 99212
+Strep Throat Sore throat, fever 102F, body aches. Exam: exudates. Plan: strep test, amox if positive.
+Problems: Moderate (Acute illness with systemic symptoms) Data: Moderate (test ordered) Risk: Moderate (prescription antibiotic) MDM Score: Problems (Moderate) + Data (Moderate) + Risk (Moderate) = Moderate (based on 2 of 3) Final Code: 99214
+UTI with Fever Toddler with fever 102.5, crying with urination. Exam: suprapubic tenderness. Urine dipstick positive. Plan: send urine culture.
+Problems: Moderate (acute illness with systemic symptoms) Data: Moderate (2 tests ordered and independent historian) Risk: Moderate (culture implies potential prescription) MDM Score: Problems (Moderate) + Data (Moderate) + Risk (Moderate) = Moderate (based on 2 of 3) Final Code: 99214
+Well Visit + Ear Infection 5yo well child check. Parent reports ear pain, fever x2 days. Exam: acute otitis media. Plan: amoxicillin.
+Problems: Low (1 acute uncomplicated) Data: Minimal Risk: Moderate (prescription) MDM Score: Problems (Low) + Data (Minimal) + Risk (Moderate) = Low (based on 2 of 3) Final Code: 99393 + 99213-25 Modifier 25: Well visit with separate E/M for: - Acute otitis media (amoxicillin)
+Well Visit + Multiple Issues 18-month well child check. Also has URI and diaper rash. Exam: clear rhinorrhea, diaper dermatitis. Plan: supportive care for URI, barrier cream for rash.
+Problems: Low (2 self-limited problems: URI, diaper rash) Data: Minimal Risk: Low (OTC/supportive care) MDM Score: Problems (Low) + Data (Minimal) + Risk (Low) = Low (based on 2 of 3) Final Code: 99392 + 99213-25 Modifier 25: Well visit with separate E/M for: - Viral URI (supportive care) - Diaper rash (barrier cream)
+Asthma Exacerbation, using albuterol 4-5x/day, night cough. Exam: mild wheezing. Plan: increase Flovent.
+Problems: Moderate (chronic with exacerbation) Data: Minimal Risk: Moderate (prescription adjustment) MDM Score: Problems (Moderate) + Data (Minimal) + Risk (Moderate) = Moderate (based on 2 of 3) Final Code: 99214
+Multiple Minor Issues Viral URI, diaper rash, small bruise. Exam unremarkable. Plan: supportive care, barrier cream, observation.
+Problems: Low (3 self-limited problems) Data: Minimal Risk: Low (OTC only) MDM Score: Problems (Low) + Data (Minimal) + Risk (Low) = Straightforward (based on 2 of 3) Final Code: 99212
+*Do not list any references that were used*`
+  },
+  {
+    id: "teaching",
+    title: "Teaching - Socratic Prompt",
+    label: "Teaching - Socratic",
+    description: "Extracts clinical pearl and then asks a follow up question to probe a student's understanding further.",
+    specialty: "All",
+    category: "Teaching",
+    order: 10,
+    inputSource: "noteOutput",
+    prompt: `From this case, extract one brief 'Clinical Pearl' for teaching (<=20 words). Focus on a practical pitfall, tip, or insight-not patient-specific.
+Using that clinical pearl, then take it one step farther and ask the clinician a socratic style follow up question to cause them to think more deeply about this particular patient. Write each on a separate line below bolded header "Clinical Pearl:"`
+  }
+];
+
+function defaultPipelineSteps() {
+  return PIPELINE_LIBRARY.map(t => ({
+    id: t.id,
+    label: t.label,
+    enabled: false,
+    prompt: t.prompt,
+    inputSource: t.inputSource
+  }));
+}
+
 // ─── Default Settings ─────────────────────────────────────────────────────
 const DEFAULTS = {
   llmModel: "Qwen3-4B-q4f16_1-MLC",
@@ -56,17 +242,31 @@ const DEFAULTS = {
     { key: ".wcc", value: "well child check" },
     { key: ".pe", value: "physical exam" },
     { key: ".hpi", value: "history of present illness" }
-  ]
+  ],
+  pipelineSteps: defaultPipelineSteps()
 };
 
 // ─── Settings persistence ─────────────────────────────────────────────────
-const STORAGE_KEY = "present_settings_v1";
+const STORAGE_KEY = "present_settings_v2";
+const LEGACY_STORAGE_KEY = "present_settings_v1";
+function normalizePipelineSteps(steps) {
+  if (!Array.isArray(steps)) return structuredClone(DEFAULTS.pipelineSteps);
+  return steps.map((step, idx) => ({
+    id: step.id || `custom-${Date.now()}-${idx}`,
+    label: step.label || "Untitled Step",
+    enabled: Boolean(step.enabled),
+    prompt: step.prompt || "",
+    inputSource: step.inputSource === "cleanedTranscript" ? "cleanedTranscript" : "noteOutput"
+  }));
+}
 function loadSettings() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    const shouldMigrate = !raw;
+    if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return structuredClone(DEFAULTS);
     const saved = JSON.parse(raw);
-    return {
+    const hydrated = {
       llmModel:      saved.llmModel      ?? DEFAULTS.llmModel,
       whisperModel:  saved.whisperModel  ?? DEFAULTS.whisperModel,
       // support both old key (medicationVocabulary) and new key (termVocabulary) gracefully
@@ -78,8 +278,11 @@ function loadSettings() {
       cleanupPrompt: saved.cleanupPrompt ?? DEFAULTS.cleanupPrompt,
       mainPrompt:    saved.mainPrompt    ?? DEFAULTS.mainPrompt,
       boilerplate:   Array.isArray(saved.boilerplate) ? saved.boilerplate : structuredClone(DEFAULTS.boilerplate),
-      macros:        Array.isArray(saved.macros) ? saved.macros : structuredClone(DEFAULTS.macros)
+      macros:        Array.isArray(saved.macros) ? saved.macros : structuredClone(DEFAULTS.macros),
+      pipelineSteps: normalizePipelineSteps(saved.pipelineSteps)
     };
+    if (shouldMigrate) saveSettingsToStorage(hydrated);
+    return hydrated;
   } catch { return structuredClone(DEFAULTS); }
 }
 function saveSettingsToStorage(s) {
@@ -236,7 +439,13 @@ function showError(msg) {
   document.getElementById("outputEmpty").style.display = "none";
   document.getElementById("outputContent").style.display = "none";
   document.getElementById("outputStreaming").style.display = "none";
-  document.getElementById("outputArea").innerHTML = `<div class="error-msg">${msg}</div>`;
+  resetPipelineStepOutputs();
+  const area = document.getElementById("outputArea");
+  area.querySelector(".error-msg")?.remove();
+  const error = document.createElement("div");
+  error.className = "error-msg";
+  error.textContent = msg;
+  area.prepend(error);
 }
 function updateProcessBtn() {
   const hasContent = currentTab === "mic"
@@ -525,6 +734,85 @@ function getProblemBlockHtml(block) {
   }
   return htmlParts.join("\n");
 }
+function getPipelineStepsContainer() {
+  return document.getElementById("pipelineStepsOutput");
+}
+function resetPipelineStepOutputs() {
+  const container = getPipelineStepsContainer();
+  if (!container) return;
+  container.innerHTML = "";
+  container.style.display = "none";
+}
+function renderPipelineStepOutput(step, text = "", state = "streaming") {
+  const container = getPipelineStepsContainer();
+  if (!container) return null;
+  container.style.display = "flex";
+  let box = container.querySelector(`[data-step-id="${CSS.escape(step.id)}"]`);
+  if (!box) {
+    box = document.createElement("section");
+    box.className = "pipeline-step-output";
+    box.dataset.stepId = step.id;
+    box.innerHTML = `
+      <div class="pipeline-step-header">
+        <div class="pipeline-step-title-wrap">
+          <span class="pipeline-step-kicker">EXTRA</span>
+          <h3 class="pipeline-step-title"></h3>
+        </div>
+        <div class="pipeline-step-status"><span class="think-dot"></span>Generating...</div>
+        <button class="btn-copy pipeline-step-copy" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy
+        </button>
+      </div>
+      <pre class="pipeline-step-text"></pre>
+    `;
+    container.appendChild(box);
+  }
+  box.querySelector(".pipeline-step-title").textContent = step.label || "Pipeline Step";
+  box.querySelector(".pipeline-step-text").textContent = text;
+  box.classList.toggle("is-streaming", state === "streaming");
+  box.classList.toggle("is-error", state === "error");
+  const status = box.querySelector(".pipeline-step-status");
+  status.innerHTML = state === "streaming"
+    ? '<span class="think-dot"></span>Generating...'
+    : state === "error"
+      ? "Could not generate"
+      : "Ready";
+  const copyBtn = box.querySelector(".pipeline-step-copy");
+  copyBtn.disabled = !text.trim() || state === "streaming";
+  copyBtn.onclick = () => copyPipelineStepOutput(step.id, copyBtn);
+  return box;
+}
+async function copyPipelineStepOutput(stepId, btn) {
+  const box = document.querySelector(`[data-step-id="${CSS.escape(stepId)}"]`);
+  const text = box?.querySelector(".pipeline-step-text")?.textContent || "";
+  if (!text.trim()) return;
+  const resetHTML = btn.innerHTML;
+  try {
+    await navigator.clipboard.writeText(text);
+    flashCopied(btn, resetHTML);
+    showAutocopyToast("\u2713 Step copied");
+  } catch {}
+}
+async function runPipelineStep(step, userContent) {
+  let rawText = "";
+  renderPipelineStepOutput(step, "", "streaming");
+  const stream = await engine.chat.completions.create({
+    messages: [
+      { role: "system", content: step.prompt },
+      { role: "user", content: `${userContent}\n\n/no_think` }
+    ],
+    stream: true, temperature: 0.1, max_tokens: 1024, extra_body: { enable_thinking: false }
+  });
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content || "";
+    rawText += delta;
+    renderPipelineStepOutput(step, stripThinkTags(rawText), "streaming");
+  }
+  const finalText = stripThinkTags(rawText);
+  renderPipelineStepOutput(step, finalText, "done");
+  return finalText;
+}
 
 // ─── Process Note ─────────────────────────────────────────────────────────
 window.processNote = async function() {
@@ -544,6 +832,7 @@ window.processNote = async function() {
   const thinkLabel = document.querySelector(".thinking-label");
   empty.style.display = "none"; content.style.display = "none"; content.contentEditable = "false";
   streaming.style.display = "block"; btnCopy.style.display = "none";
+  resetPipelineStepOutputs();
   if (btnCopyGroup) btnCopyGroup.style.display = "none";
   editHint.style.display = "none"; streamText.textContent = "";
   document.getElementById("btnProcess").disabled = true;
@@ -590,6 +879,16 @@ window.processNote = async function() {
       const htmlText = getCurrentOutputHtml() || processedText;
       autoCopyToClipboard(plainText, htmlText);
     }, 400);
+    const enabledSteps = (settings.pipelineSteps || []).filter(s => s.enabled && s.prompt.trim());
+    for (const step of enabledSteps) {
+      const userContent = step.inputSource === "cleanedTranscript" ? cleanedInput : processedText;
+      try {
+        await runPipelineStep(step, userContent);
+      } catch (stepErr) {
+        console.error("Pipeline step failed:", stepErr);
+        renderPipelineStepOutput(step, "Error generating this pipeline step: " + stepErr.message, "error");
+      }
+    }
   } catch (err) {
     console.error("Generation error:", err);
     streaming.style.display = "none";
@@ -730,6 +1029,7 @@ window.clearAll = function() {
   const content = document.getElementById("outputContent");
   content.style.display = "none"; content.contentEditable = "false"; content.innerHTML = "";
   document.getElementById("outputStreaming").style.display = "none";
+  resetPipelineStepOutputs();
   document.getElementById("btnCopy").style.display = "none";
   const cg = document.getElementById("btnCopyGroup"); if (cg) cg.style.display = "none";
   document.getElementById("editHint").style.display = "none";
@@ -737,6 +1037,7 @@ window.clearAll = function() {
   const err = area.querySelector(".error-msg"); if (err) err.remove();
   area.appendChild(document.getElementById("outputEmpty"));
   area.appendChild(content);
+  area.appendChild(getPipelineStepsContainer());
   area.appendChild(document.getElementById("outputStreaming"));
   window._rawOutput = "";
   if (isRecording) {
@@ -768,6 +1069,8 @@ function populateSettingsUI() {
   document.getElementById("settingMacros").value = (settings.macros || []).map(m => `${m.key}: ${m.value}`).join("\n");
   document.getElementById("settingCleanupPrompt").value = settings.cleanupPrompt;
   document.getElementById("settingMainPrompt").value = settings.mainPrompt;
+  renderPipelineStepsList();
+  renderPipelineLibrary();
   renderBoilerplateList();
 }
 
@@ -816,6 +1119,137 @@ window.addBoilerplateEntry = function() {
   const last = document.getElementById("boilerplateList").lastElementChild;
   if (last) { last.classList.add("expanded"); last.querySelector(".bp-entry-key-input")?.focus(); }
 };
+
+// ─── Extra Pipeline Steps UI ──────────────────────────────────────────────
+function makeStepId(prefix = "custom") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+function renderPipelineStepsList() {
+  const container = document.getElementById("pipelineStepsList");
+  if (!container) return;
+  container.innerHTML = "";
+  (settings.pipelineSteps || []).forEach((step, idx) => container.appendChild(createPipelineStepEl(step, idx)));
+  container.addEventListener("dragover", handlePipelineDragOver);
+  container.addEventListener("drop", handlePipelineDrop);
+}
+function createPipelineStepEl(step, idx) {
+  const div = document.createElement("div");
+  div.className = "pipeline-entry";
+  div.dataset.idx = idx;
+  div.draggable = true;
+  div.addEventListener("dragstart", (e) => {
+    e.dataTransfer.setData("text/plain", String(idx));
+    e.dataTransfer.effectAllowed = "move";
+    div.classList.add("dragging");
+  });
+  div.addEventListener("dragend", () => div.classList.remove("dragging"));
+  div.innerHTML = `
+    <div class="pipeline-entry-header" onclick="togglePipelineEntry(this)">
+      <span class="pipeline-drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
+      <label class="switch" onclick="event.stopPropagation()">
+        <input type="checkbox" ${step.enabled ? "checked" : ""} onchange="updatePipelineStep(${idx},'enabled',this.checked)">
+        <span class="switch-slider"></span>
+      </label>
+      <input class="pipeline-label-input" type="text" value="${escHtml(step.label)}" placeholder="Step label" spellcheck="false" onclick="event.stopPropagation()" oninput="updatePipelineStep(${idx},'label',this.value)">
+      <span class="pipeline-entry-source">${step.inputSource === "cleanedTranscript" ? "Cleaned transcript" : "Note output"}</span>
+      <span class="bp-entry-toggle"><svg class="bp-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="pipeline-entry-body">
+      <label class="bp-field-label" for="pipelineInputSource${idx}">Input source</label>
+      <select class="settings-select pipeline-source-select" id="pipelineInputSource${idx}" onchange="updatePipelineStep(${idx},'inputSource',this.value)">
+        <option value="noteOutput" ${step.inputSource === "noteOutput" ? "selected" : ""}>Structured note output</option>
+        <option value="cleanedTranscript" ${step.inputSource === "cleanedTranscript" ? "selected" : ""}>Cleaned transcript</option>
+      </select>
+      <div>
+        <div class="bp-field-label">Prompt</div>
+        <textarea class="pipeline-prompt-textarea" rows="10" spellcheck="false" oninput="updatePipelineStep(${idx},'prompt',this.value)">${escHtml(step.prompt)}</textarea>
+      </div>
+      <div class="bp-entry-footer">
+        <button class="bp-btn-delete" onclick="deletePipelineStep(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>Delete</button>
+      </div>
+    </div>`;
+  return div;
+}
+function handlePipelineDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+}
+function handlePipelineDrop(e) {
+  e.preventDefault();
+  const from = Number(e.dataTransfer.getData("text/plain"));
+  if (!Number.isInteger(from)) return;
+  const rows = [...document.querySelectorAll("#pipelineStepsList .pipeline-entry")];
+  const target = e.target.closest(".pipeline-entry");
+  let to = target ? rows.indexOf(target) : settings.pipelineSteps.length - 1;
+  if (to < 0) to = settings.pipelineSteps.length - 1;
+  const targetRect = target?.getBoundingClientRect();
+  if (targetRect && e.clientY > targetRect.top + targetRect.height / 2) to += 1;
+  if (from < to) to -= 1;
+  if (from === to || from < 0 || from >= settings.pipelineSteps.length) return;
+  const [moved] = settings.pipelineSteps.splice(from, 1);
+  settings.pipelineSteps.splice(Math.max(0, to), 0, moved);
+  renderPipelineStepsList();
+}
+function renderPipelineLibrary() {
+  const grid = document.getElementById("pipelineLibraryGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  [...PIPELINE_LIBRARY].sort((a,b) => a.order - b.order).forEach(template => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "pipeline-library-card";
+    card.innerHTML = `
+      <span class="pipeline-library-category">${escHtml(template.category)}</span>
+      <strong>${escHtml(template.title)}</strong>
+      <span>${escHtml(template.description)}</span>
+      <em>${escHtml(template.specialty)}</em>
+    `;
+    card.addEventListener("click", () => addPipelineStepFromTemplate(template));
+    grid.appendChild(card);
+  });
+}
+window.togglePipelineEntry = (h) => h.closest(".pipeline-entry").classList.toggle("expanded");
+window.updatePipelineStep = (i, f, v) => {
+  if (!settings.pipelineSteps[i]) return;
+  settings.pipelineSteps[i][f] = v;
+  if (f === "inputSource") renderPipelineStepsList();
+};
+window.deletePipelineStep = (i) => {
+  settings.pipelineSteps.splice(i, 1);
+  renderPipelineStepsList();
+};
+window.addPipelineStep = function() {
+  settings.pipelineSteps.push({
+    id: makeStepId(),
+    label: "Untitled Step",
+    enabled: false,
+    prompt: "",
+    inputSource: "noteOutput"
+  });
+  renderPipelineStepsList();
+  const last = document.getElementById("pipelineStepsList").lastElementChild;
+  if (last) { last.classList.add("expanded"); last.querySelector(".pipeline-label-input")?.focus(); }
+};
+window.openPipelineLibrary = function() {
+  renderPipelineLibrary();
+  document.getElementById("pipelineLibraryModal").classList.add("open");
+};
+window.closePipelineLibrary = function() {
+  document.getElementById("pipelineLibraryModal").classList.remove("open");
+};
+window.addPipelineStepFromTemplate = function(template) {
+  settings.pipelineSteps.push({
+    id: makeStepId(template.id),
+    label: template.label,
+    enabled: true,
+    prompt: template.prompt,
+    inputSource: template.inputSource
+  });
+  renderPipelineStepsList();
+  closePipelineLibrary();
+  const last = document.getElementById("pipelineStepsList").lastElementChild;
+  if (last) last.classList.add("expanded");
+};
 window.saveSettings = function() {
   settings.llmModel      = document.getElementById("settingLLMModel").value;
   settings.whisperModel  = document.getElementById("settingWhisperModel").value;
@@ -838,6 +1272,7 @@ window.saveSettings = function() {
 
   settings.cleanupPrompt = document.getElementById("settingCleanupPrompt").value;
   settings.mainPrompt    = document.getElementById("settingMainPrompt").value;
+  settings.pipelineSteps = normalizePipelineSteps(settings.pipelineSteps);
   const ok = saveSettingsToStorage(settings);
   const status = document.getElementById("settingsSaveStatus");
   status.textContent = ok ? "\u2713 Saved \u2014 click Reload Models to apply model changes" : "\u26a0 Could not persist (storage blocked)";
