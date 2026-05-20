@@ -207,24 +207,6 @@ function defaultPipelineSteps() {
   }));
 }
 
-const DEFAULT_BOILERPLATE = [
-  { key: "WCC", trigger: "Well child check or health maintenance discussed", text: "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. Screening questions, past medical history, past social history, medications, and growth chart reviewed. Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed." },
-  { key: "ILLNESS", trigger: "Any illness (infection, virus, fever, etc.) discussed", text: "Recommended supportive care with OTC medications as needed. Return precautions given including increasing pain, worsening fever, dehydration, new symptoms, prolonged symptoms, worsening symptoms, and other concerns. Caregiver expressed understanding and agreement with treatment plan." },
-  { key: "INJURY", trigger: "Any injury discussed", text: "Recommended supportive care with Tylenol, Motrin, rest, ice, compression, elevation, and gradual return to activity as appropriate. Return precautions given including increasing pain, swelling, or failure to improve." },
-  { key: "OTITIS", trigger: "Ear infection (otitis media) discussed", text: "Risk of untreated otitis media includes persistent pain and fever, hearing loss, and mastoiditis." },
-  { key: "STREP", trigger: "Strep throat or rapid strep test discussed", text: "Risk of untreated strep throat includes rheumatic fever and peritonsillar abscess. This problem is moderate risk due to pending lab results which may necessitate further pharmacologic management." },
-  { key: "DEHYDRATION", trigger: "Dehydration, vomiting, diarrhea, or decreased urination discussed", text: "Patient is at risk for dehydration, which would warrant emergency room care or admission for IV fluids." },
-  { key: "RESP", trigger: "Trouble breathing, wheezing, or respiratory distress discussed", text: "Patient is at risk for worsening respiratory distress and clinical deterioration, which would need emergency room care or hospital admission." },
-  { key: "PCMH", trigger: "ADHD, weight concern, obesity, or strep throat discussed", text: "PCMH Reminder" }
-];
-
-function defaultBoilerplateMacros() {
-  return DEFAULT_BOILERPLATE.map(entry => ({
-    key: `.bp${entry.key.toLowerCase()}`,
-    value: entry.text
-  }));
-}
-
 // ─── Default Settings ─────────────────────────────────────────────────────
 const DEFAULTS = {
   llmModel: "Qwen3-4B-q4f16_1-MLC",
@@ -242,7 +224,16 @@ const DEFAULTS = {
   ],
   cleanupPrompt: `You are a medical transcription editor. Your task is to clean up a rough ASR (Automated Speech Recognition) dictation transcript. \n- Fix any spelling errors, phonetic mistakes, and correct medical terminology.\n- Remove disfluencies, filler words, and false starts.\n- Add proper punctuation and capitalization.\n- Do NOT change the clinical meaning, add any new information, or reformat into a list.\n- Output ONLY the continuous cleaned transcript paragraph.`,
   mainPrompt: `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.\n\n# OUTPUT FORMAT\n\nFor each diagnosis/problem mentioned, present bullets in this order when present:\n\nDiagnosis or Problem Name\n- Labs\n- Imaging\n- Medications with exact doses if stated\n- Treatment / plan actions\n- Supportive care\n- Differential if mentioned\n- Conditional plans if mentioned\n- Return precautions if mentioned\n- Nursing orders if mentioned\n- Follow-Up if mentioned\n\nSeparate each problem with one blank line.\n\n# STYLE RULES\n\n- Use concise telegraphic bullets only\n- No full sentences unless necessary for clarity\n- No commentary, explanation, or preamble\n- Output ONLY the note\n- Do not use markdown formatting — no asterisks, no pound signs, plain text only\n- Include only information explicitly stated or clearly implied\n- Do not invent diagnoses, medications, labs, imaging, or follow-up\n- Preserve clinician wording when reasonable\n- Keep diagnoses in order mentioned\n- Do not create empty categories or placeholder bullets\n- Medication names and doses must match dictation exactly — omit dose if not stated\n- Use the explicit diagnosis or condition name as the heading, not presenting symptoms\n- If the clinician states a diagnosis, always prefer it over symptom descriptors as the heading\n\n# FORMATTING RULES\n\n- Differentials format:\n  Differential includes X, Y, Z\n\n- Return precautions format:\n  Return precautions include...\n\n- Follow-up format:\n  Follow-Up: ...\n\n# BOILERPLATE TAGS\n\nAfter all problem blocks, emit the appropriate tag(s) on their own line when the condition is present.\nDo not write the boilerplate text yourself — emit only the tag exactly as shown.\n\n{BOILERPLATE_TRIGGER_LIST}\n\nMultiple tags may apply. Each tag goes on its own line after the last problem block.\n\n# EXAMPLES\n\nDictation: "patient has acute otitis media, plan to treat with amoxicillin 90mg per kg per day divided twice daily, also tylenol motrin and hydration, return precautions for worsening fever or pain, follow up as needed"\n\nAcute Otitis Media\n- Amoxicillin 90mg/kg/day divided BID\n- Tylenol, Motrin, hydration\n- Return precautions include worsening fever, pain, failure to improve\n- Follow-Up: PRN\n[BOILERPLATE:ILLNESS]\n[BOILERPLATE:OTITIS]\n\n---\n\nDictation: "patient presenting with cough and fever, exam with right lower lobe crackles, diagnosis is community acquired pneumonia, treating with amoxicillin, also supportive care with tylenol motrin and fluids, return precautions for increased work of breathing, follow up as needed"\n\nCommunity-Acquired Pneumonia, right lower lobe\n- Amoxicillin\n- Tylenol, Motrin, fluids\n- Return precautions include increased work of breathing\n- Follow-Up: PRN\n[BOILERPLATE:ILLNESS]\n[BOILERPLATE:RESP]\n\n---\n\nDictation: "ADHD combined type, increasing concerta from 18 to 27mg daily, placing counseling referral, follow up in three months"\n\nADHD, combined\n- Concerta increased from 18mg to 27mg PO daily\n- Counseling referral placed\n- Follow-Up: 3 months\n[BOILERPLATE:PCMH]\n\n---\n\nDictation: "well child check, growing and developing well, anticipatory guidance discussed, all questions addressed, follow up in one year"\n\nWell Child Check\n- Growing and developing well\n- Anticipatory guidance discussed\n- Questions addressed\n- Follow-Up: 1 year/PRN\n[BOILERPLATE:WCC]`,
-  boilerplate: structuredClone(DEFAULT_BOILERPLATE),
+  boilerplate: [
+    { key: "WCC", trigger: "Well child check or health maintenance discussed", text: "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. Screening questions, past medical history, past social history, medications, and growth chart reviewed. Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed." },
+    { key: "ILLNESS", trigger: "Any illness (infection, virus, fever, etc.) discussed", text: "Recommended supportive care with OTC medications as needed. Return precautions given including increasing pain, worsening fever, dehydration, new symptoms, prolonged symptoms, worsening symptoms, and other concerns. Caregiver expressed understanding and agreement with treatment plan." },
+    { key: "INJURY", trigger: "Any injury discussed", text: "Recommended supportive care with Tylenol, Motrin, rest, ice, compression, elevation, and gradual return to activity as appropriate. Return precautions given including increasing pain, swelling, or failure to improve." },
+    { key: "OTITIS", trigger: "Ear infection (otitis media) discussed", text: "Risk of untreated otitis media includes persistent pain and fever, hearing loss, and mastoiditis." },
+    { key: "STREP", trigger: "Strep throat or rapid strep test discussed", text: "Risk of untreated strep throat includes rheumatic fever and peritonsillar abscess. This problem is moderate risk due to pending lab results which may necessitate further pharmacologic management." },
+    { key: "DEHYDRATION", trigger: "Dehydration, vomiting, diarrhea, or decreased urination discussed", text: "Patient is at risk for dehydration, which would warrant emergency room care or admission for IV fluids." },
+    { key: "RESP", trigger: "Trouble breathing, wheezing, or respiratory distress discussed", text: "Patient is at risk for worsening respiratory distress and clinical deterioration, which would need emergency room care or hospital admission." },
+    { key: "PCMH", trigger: "ADHD, weight concern, obesity, or strep throat discussed", text: "PCMH Reminder" }
+  ],
   macros: [
     { key: ".aom", value: "acute otitis media" },
     { key: ".sob", value: "shortness of breath" },
@@ -250,8 +241,7 @@ const DEFAULTS = {
     { key: ".flu", value: "influenza" },
     { key: ".wcc", value: "well child check" },
     { key: ".pe", value: "physical exam" },
-    { key: ".hpi", value: "history of present illness" },
-    ...defaultBoilerplateMacros()
+    { key: ".hpi", value: "history of present illness" }
   ],
   pipelineSteps: defaultPipelineSteps()
 };
