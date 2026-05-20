@@ -1,5 +1,7 @@
 # Security and Patient Data Review
 
+*This tool is currently in beta development. The goal is to explore what is possible, but in its current state any actual clinical use should be strictly avoided.*
+
 Present is a static, browser-based clinical documentation assistant intended to keep clinical content on the clinician's device. This document summarizes the data flow, patient-data posture, network behavior, and recommended deployment controls for IT/security review.
 
 This document is not legal advice. HIPAA compliance decisions should be made by the covered entity or business associate through its normal privacy, security, legal, and risk-management process.
