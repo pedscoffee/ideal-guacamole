@@ -47,6 +47,15 @@ const DEFAULTS = {
     { key: "DEHYDRATION", trigger: "Dehydration, vomiting, diarrhea, or decreased urination discussed", text: "Patient is at risk for dehydration, which would warrant emergency room care or admission for IV fluids." },
     { key: "RESP", trigger: "Trouble breathing, wheezing, or respiratory distress discussed", text: "Patient is at risk for worsening respiratory distress and clinical deterioration, which would need emergency room care or hospital admission." },
     { key: "PCMH", trigger: "ADHD, weight concern, obesity, or strep throat discussed", text: "PCMH Reminder" }
+  ],
+  macros: [
+    { key: ".aom", value: "acute otitis media" },
+    { key: ".sob", value: "shortness of breath" },
+    { key: ".rtp", value: "return precautions" },
+    { key: ".flu", value: "influenza" },
+    { key: ".wcc", value: "well child check" },
+    { key: ".pe", value: "physical exam" },
+    { key: ".hpi", value: "history of present illness" }
   ]
 };
 
@@ -68,7 +77,8 @@ function loadSettings() {
           : structuredClone(DEFAULTS.termVocabulary),
       cleanupPrompt: saved.cleanupPrompt ?? DEFAULTS.cleanupPrompt,
       mainPrompt:    saved.mainPrompt    ?? DEFAULTS.mainPrompt,
-      boilerplate:   Array.isArray(saved.boilerplate) ? saved.boilerplate : structuredClone(DEFAULTS.boilerplate)
+      boilerplate:   Array.isArray(saved.boilerplate) ? saved.boilerplate : structuredClone(DEFAULTS.boilerplate),
+      macros:        Array.isArray(saved.macros) ? saved.macros : structuredClone(DEFAULTS.macros)
     };
   } catch { return structuredClone(DEFAULTS); }
 }
@@ -105,11 +115,67 @@ function getNoteSystemPrompt() {
   return settings.mainPrompt.replace("{BOILERPLATE_TRIGGER_LIST}", buildBoilerplateTriggerList());
 }
 
+// ─── Shorthand Macros Engine ──────────────────────────────────────────────
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function expandMacros(text) {
+  if (!text || !settings.macros || settings.macros.length === 0) return text;
+  let result = text;
+  const sortedMacros = [...settings.macros].sort((a, b) => b.key.length - a.key.length);
+  for (const macro of sortedMacros) {
+    if (!macro.key || !macro.value) continue;
+    const escapedKey = escapeRegExp(macro.key);
+    const regex = new RegExp('(^|\\s)' + escapedKey + '(?=\\s|[.,;:!?\\)]|$)', 'gi');
+    result = result.replace(regex, `$1${macro.value}`);
+  }
+  return result;
+}
+function setupTextareaMacroExpander(textarea) {
+  if (!textarea) return;
+  textarea.addEventListener("keydown", (e) => {
+    const triggers = [" ", "Enter", ".", ",", ";", ":", "?", "!", ")"];
+    if (!triggers.includes(e.key)) return;
+    const start = textarea.selectionStart;
+    const textBefore = textarea.value.slice(0, start);
+    const textAfter = textarea.value.slice(start);
+    const words = textBefore.split(/(\s+)/);
+    if (words.length === 0) return;
+    const lastWord = words[words.length - 1].trim();
+    if (!lastWord) return;
+    const matchingMacro = (settings.macros || []).find(
+      m => m.key.toLowerCase() === lastWord.toLowerCase()
+    );
+    if (matchingMacro) {
+      e.preventDefault();
+      const expandedValue = matchingMacro.value;
+      const keyToInsert = e.key === "Enter" ? "\n" : e.key;
+      words[words.length - 1] = expandedValue;
+      const newTextBefore = words.join("") + keyToInsert;
+      textarea.value = newTextBefore + textAfter;
+      const newCursorPos = newTextBefore.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.dispatchEvent(new Event("input"));
+    }
+  });
+}
+function initMacroExpanders() {
+  setupTextareaMacroExpander(document.getElementById("textInput"));
+  setupTextareaMacroExpander(document.getElementById("transcriptText"));
+}
+
+
 // ─── State ────────────────────────────────────────────────────────────────
 let engine = null, transcriber = null;
 let isLLMReady = false, isWhisperReady = false, isModelReady = false;
-let isRecording = false, mediaRecorder = null, audioChunks = [];
+let isRecording = false, mediaRecorder = null, audioChunks = [], recordingStream = null;
 let transcript = "", timerInterval = null, timerSeconds = 0, currentTab = "mic";
+
+// Web Audio visualizer globals
+let visualizerAudioCtx = null;
+let visualizerAnalyser = null;
+let visualizerSource = null;
+let visualizerAnimationId = null;
 
 function checkModelsReady() {
   if (isLLMReady && isWhisperReady) {
@@ -191,6 +257,7 @@ window.switchTab = function(tab) {
 async function setupAudioRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordingStream = stream;
     mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
@@ -230,10 +297,120 @@ async function transcribeAudio(blob) {
     document.getElementById("micHint").textContent = "Click to begin recording";
   }
 }
+// ─── Circular Audio Waveform Visualizer ──────────────────────────────────────
+function startVisualizer() {
+  const stream = recordingStream || (mediaRecorder && mediaRecorder.stream);
+  if (!stream) return;
+  try {
+    if (!visualizerAudioCtx) {
+      visualizerAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } else if (visualizerAudioCtx.state === "suspended") {
+      visualizerAudioCtx.resume();
+    }
+    visualizerAnalyser = visualizerAudioCtx.createAnalyser();
+    visualizerAnalyser.fftSize = 256;
+    visualizerSource = visualizerAudioCtx.createMediaStreamSource(stream);
+    visualizerSource.connect(visualizerAnalyser);
+    drawWaveform();
+  } catch (err) {
+    console.error("Failed to start waveform visualizer:", err);
+  }
+}
+
+function drawWaveform() {
+  const canvas = document.getElementById("micWaveform");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const baseRadius = 38; // Radius just outside the 56px button (which has 28px radius)
+  const maxOffset = 25;  // Max outward animation amplitude
+
+  const bufferLength = visualizerAnalyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  const smoothData = new Float32Array(bufferLength);
+
+  function draw() {
+    if (!isRecording) {
+      ctx.clearRect(0, 0, width, height);
+      return;
+    }
+    visualizerAnimationId = requestAnimationFrame(draw);
+    visualizerAnalyser.getByteFrequencyData(dataArray);
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Background ambient ring
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, baseRadius, 0, 2 * Math.PI);
+    ctx.strokeStyle = "rgba(0, 229, 160, 0.08)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Draw glowing circular waveform
+    ctx.beginPath();
+    const numPoints = 64; // Balance resolution and rendering performance
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * 2 * Math.PI;
+      // Symmetric styling: map left/right to keep circle visually balanced
+      const dataIdx = i < numPoints / 2 ? i : numPoints - i;
+      const rawValue = dataArray[dataIdx] || 0;
+
+      // Smooth transitions
+      smoothData[i] = smoothData[i] * 0.75 + rawValue * 0.25;
+      const offset = (smoothData[i] / 255.0) * maxOffset;
+      const r = baseRadius + offset;
+
+      const x = centerX + Math.cos(angle) * r;
+      const y = centerY + Math.sin(angle) * r;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+
+    ctx.strokeStyle = "#00e5a0";
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = "#00e5a0";
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0; // Reset shadow for other drawings
+  }
+  draw();
+}
+
+function stopVisualizer() {
+  if (visualizerAnimationId) {
+    cancelAnimationFrame(visualizerAnimationId);
+    visualizerAnimationId = null;
+  }
+  if (visualizerSource) {
+    visualizerSource.disconnect();
+    visualizerSource = null;
+  }
+  if (visualizerAnalyser) {
+    visualizerAnalyser = null;
+  }
+  if (visualizerAudioCtx && visualizerAudioCtx.state !== "closed") {
+    visualizerAudioCtx.suspend();
+  }
+  const canvas = document.getElementById("micWaveform");
+  if (canvas) {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
 window.toggleRecording = async function() { if (isRecording) stopRecording(); else await startRecording(); };
 async function startRecording() {
   if (!mediaRecorder) { await setupAudioRecording(); if (!mediaRecorder) return; }
   audioChunks = []; mediaRecorder.start(); isRecording = true;
+  startVisualizer();
   document.getElementById("micVisualizer").classList.add("recording");
   document.getElementById("micBtn").style.cssText = "";
   document.getElementById("micHint").textContent = "Listening\u2026 speak your assessment and plan";
@@ -247,6 +424,7 @@ async function startRecording() {
 }
 function stopRecording() {
   isRecording = false; mediaRecorder.stop();
+  stopVisualizer();
   document.getElementById("micVisualizer").classList.remove("recording");
   document.getElementById("micHint").textContent = "Processing audio locally...";
   document.getElementById("recordingTimer").style.display = "none";
@@ -269,8 +447,22 @@ function applyBoilerplate(raw) {
 function postProcess(raw) { return applyBoilerplate(stripThinkTags(raw)); }
 
 // ─── Toast / Clipboard ────────────────────────────────────────────────────
-function autoCopyToClipboard(text) {
-  navigator.clipboard.writeText(text).then(() => showAutocopyToast("\u2713 Auto-copied to clipboard")).catch(() => {});
+function copyToClipboardRich(plainText, htmlText) {
+  if (typeof ClipboardItem === "undefined") {
+    return navigator.clipboard.writeText(plainText);
+  }
+  const plainTextBlob = new Blob([plainText], { type: "text/plain" });
+  const htmlTextBlob = new Blob([htmlText], { type: "text/html" });
+  const item = new ClipboardItem({
+    "text/plain": plainTextBlob,
+    "text/html": htmlTextBlob
+  });
+  return navigator.clipboard.write([item]);
+}
+function autoCopyToClipboard(plainText, htmlText) {
+  copyToClipboardRich(plainText, htmlText || plainText)
+    .then(() => showAutocopyToast("\u2713 Auto-copied to clipboard"))
+    .catch(() => {});
 }
 function showAutocopyToast(msg) {
   const toast = document.getElementById("autocopyToast");
@@ -290,14 +482,58 @@ function getCurrentOutputText() {
   }
   return lines.join("\n").trim();
 }
+function getCurrentOutputHtml() {
+  const htmlParts = [];
+  for (const node of document.getElementById("outputContent").children) {
+    if (node.classList.contains("problem-block")) {
+      const t = node.querySelector(".problem-title");
+      if (t) {
+        htmlParts.push(`<h3><strong>${escHtml(t.textContent.trim())}</strong></h3>`);
+      }
+      const lis = [];
+      node.querySelectorAll(".problem-items li").forEach(li => {
+        lis.push(`  <li>${escHtml(li.textContent.trim())}</li>`);
+      });
+      if (lis.length > 0) {
+        htmlParts.push(`<ul>\n${lis.join("\n")}\n</ul>`);
+      }
+      htmlParts.push("<br/>");
+    } else if (node.classList.contains("boilerplate-block")) {
+      htmlParts.push(`<p><em>${escHtml(node.textContent.trim())}</em></p>`);
+      htmlParts.push("<br/>");
+    } else {
+      const t = node.textContent.trim();
+      if (t) {
+        htmlParts.push(`<p>${escHtml(t)}</p>`);
+      }
+    }
+  }
+  return htmlParts.join("\n").trim();
+}
+function getProblemBlockHtml(block) {
+  const htmlParts = [];
+  const title = block.querySelector(".problem-title");
+  if (title) {
+    htmlParts.push(`<h3><strong>${escHtml(title.textContent.trim())}</strong></h3>`);
+  }
+  const lis = [];
+  block.querySelectorAll(".problem-items li").forEach(li => {
+    lis.push(`  <li>${escHtml(li.textContent.trim())}</li>`);
+  });
+  if (lis.length > 0) {
+    htmlParts.push(`<ul>\n${lis.join("\n")}\n</ul>`);
+  }
+  return htmlParts.join("\n");
+}
 
 // ─── Process Note ─────────────────────────────────────────────────────────
 window.processNote = async function() {
   if (!isModelReady || !engine) return;
-  const input = currentTab === "mic"
+  const rawInput = currentTab === "mic"
     ? document.getElementById("transcriptText").value.trim()
     : document.getElementById("textInput").value.trim();
-  if (!input) return;
+  if (!rawInput) return;
+  const input = expandMacros(rawInput);
   const empty = document.getElementById("outputEmpty");
   const content = document.getElementById("outputContent");
   const streaming = document.getElementById("outputStreaming");
@@ -349,7 +585,11 @@ window.processNote = async function() {
     btnCopy.style.display = "flex"; editHint.style.display = "flex";
     window._rawOutput = processedText;
     setTimeout(() => { content.contentEditable = "true"; }, 200);
-    setTimeout(() => { autoCopyToClipboard(processedText); }, 400);
+    setTimeout(() => {
+      const plainText = getCurrentOutputText() || processedText;
+      const htmlText = getCurrentOutputHtml() || processedText;
+      autoCopyToClipboard(plainText, htmlText);
+    }, 400);
   } catch (err) {
     console.error("Generation error:", err);
     streaming.style.display = "none";
@@ -407,8 +647,9 @@ function flashCopied(btn, resetHTML) {
   setTimeout(() => { btn.classList.remove("copied"); btn.innerHTML = resetHTML; }, 1800);
 }
 window.copyOutput = function() {
-  const text = getCurrentOutputText() || window._rawOutput || "";
-  navigator.clipboard.writeText(text).then(() => {
+  const plainText = getCurrentOutputText() || window._rawOutput || "";
+  const htmlText = getCurrentOutputHtml() || window._rawOutput || "";
+  copyToClipboardRich(plainText, htmlText).then(() => {
     const btn = document.getElementById("btnCopy");
     btn.classList.add("copied");
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
@@ -426,14 +667,18 @@ function getProblemBlockText(block) {
 }
 function copyProblemBlock(block, btn) {
   const resetHTML = btn.innerHTML;
-  navigator.clipboard.writeText(getProblemBlockText(block))
+  const plainText = getProblemBlockText(block);
+  const htmlText = getProblemBlockHtml(block);
+  copyToClipboardRich(plainText, htmlText)
     .then(() => { flashCopied(btn, resetHTML); showAutocopyToast("\u2713 Problem copied"); })
     .catch(() => {});
 }
 window.copyProblemByIndex = function(idx) {
   const block = document.querySelector(`.problem-block[data-problem-index="${idx}"]`);
   if (!block) return;
-  navigator.clipboard.writeText(getProblemBlockText(block))
+  const plainText = getProblemBlockText(block);
+  const htmlText = getProblemBlockHtml(block);
+  copyToClipboardRich(plainText, htmlText)
     .then(() => { showAutocopyToast("\u2713 Problem " + idx + " copied"); closeCopyDropdown(); })
     .catch(() => {});
 };
@@ -520,6 +765,7 @@ function populateSettingsUI() {
   document.getElementById("settingLLMModel").value = settings.llmModel;
   document.getElementById("settingWhisperModel").value = settings.whisperModel;
   document.getElementById("settingTermVocabulary").value = (settings.termVocabulary || []).join("\n");
+  document.getElementById("settingMacros").value = (settings.macros || []).map(m => `${m.key}: ${m.value}`).join("\n");
   document.getElementById("settingCleanupPrompt").value = settings.cleanupPrompt;
   document.getElementById("settingMainPrompt").value = settings.mainPrompt;
   renderBoilerplateList();
@@ -575,6 +821,21 @@ window.saveSettings = function() {
   settings.whisperModel  = document.getElementById("settingWhisperModel").value;
   settings.termVocabulary = document.getElementById("settingTermVocabulary").value
     .split("\n").map(s => s.trim()).filter(Boolean);
+  
+  settings.macros = document.getElementById("settingMacros").value
+    .split("\n")
+    .map(line => {
+      const idx = line.indexOf(":");
+      if (idx !== -1) {
+        return {
+          key: line.slice(0, idx).trim().toLowerCase(),
+          value: line.slice(idx + 1).trim()
+        };
+      }
+      return null;
+    })
+    .filter(m => m && m.key && m.value);
+
   settings.cleanupPrompt = document.getElementById("settingCleanupPrompt").value;
   settings.mainPrompt    = document.getElementById("settingMainPrompt").value;
   const ok = saveSettingsToStorage(settings);
@@ -598,4 +859,5 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────
+initMacroExpanders();
 initModel();

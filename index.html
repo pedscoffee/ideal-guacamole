@@ -118,6 +118,26 @@
         ></textarea>
       </div>
 
+      <!-- SECTION: Shorthand Macros -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Shorthand Macros
+        </div>
+        <p class="settings-section-desc">Add shortcuts that expand automatically as you type/edit or during note generation. Format as <code>.shortcut: expansion</code> (one per line). Starting shortcuts with a dot (like <code>.aom: acute otitis media</code>) makes them easy to trigger without expanding regular words.</p>
+        <label class="settings-label" for="settingMacros">
+          Macros list
+          <span class="settings-label-hint">One macro per line (e.g. <code>.sob: shortness of breath</code>)</span>
+        </label>
+        <textarea
+          class="settings-textarea settings-textarea-sm"
+          id="settingMacros"
+          spellcheck="false"
+          rows="8"
+          placeholder=".aom: acute otitis media&#10;.sob: shortness of breath&#10;.rtp: return precautions&#10;"
+        ></textarea>
+      </div>
+
       <!-- SECTION: System Prompts -->
       <div class="settings-section">
         <div class="settings-section-header">
@@ -192,6 +212,7 @@
               <div class="mic-ring mic-ring-1"></div>
               <div class="mic-ring mic-ring-2"></div>
               <div class="mic-ring mic-ring-3"></div>
+              <canvas id="micWaveform" width="160" height="160"></canvas>
               <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
               </button>
