@@ -1,5 +1,7 @@
 # Present - AI-Assisted A&P Notes
 
+*This tool is currently in beta development. The goal is to explore what is possible, but in its current state any actual clinical use should be strictly avoided.*
+
 > Runs entirely in your browser. Clinical dictation, transcripts, prompts, and generated notes are processed locally on the device.
 
 [Live App](https://pedscoffee.github.io/ideal-guacamole/)
