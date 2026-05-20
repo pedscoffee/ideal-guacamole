@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.run https://cdn.jsdelivr.net 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://esm.run https://cdn.jsdelivr.net https://huggingface.co https://cdn-lfs.huggingface.co https://raw.githubusercontent.com https://webllm.mlc.ai; img-src 'self' data:; media-src 'self' blob:;" />
   <title>Present — AI-Assisted A&P Notes</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -27,6 +28,7 @@
       <span class="logo-tag">AI-Assisted A&P Notes</span>
     </div>
     <div class="header-right">
+      <div class="privacy-status" id="privacyStatus" title="Privacy status">Ephemeral</div>
       <div class="model-status" id="modelStatus">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Loading model…</span>
@@ -96,6 +98,39 @@
           Reload Models
         </button>
         <span class="settings-model-note" id="settingsModelNote" style="display:block;margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted,#888);"></span>
+      </div>
+
+      <!-- SECTION: Privacy Controls -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-5"/></svg>
+          Calculator Mode
+        </div>
+        <p class="settings-section-desc">Clinical text stays in browser memory, model inference runs locally, and the service worker blocks third-party network requests after models finish loading. First-time model downloads still require the remote model hosts listed in this app's security policy.</p>
+
+        <label class="settings-check">
+          <input type="checkbox" id="settingEphemeralMode" />
+          <span>
+            <strong>Ephemeral clinical session</strong>
+            <small>Clear transcripts, audio chunks, and generated notes from page memory on clear, reload, or close.</small>
+          </span>
+        </label>
+
+        <label class="settings-check">
+          <input type="checkbox" id="settingDeidentifyInput" />
+          <span>
+            <strong>De-identify before generation</strong>
+            <small>Replace common identifiers such as dates, phone numbers, emails, addresses, MRNs, and SSNs before the local LLM pass.</small>
+          </span>
+        </label>
+
+        <label class="settings-check">
+          <input type="checkbox" id="settingAutoCopyOutput" />
+          <span>
+            <strong>Auto-copy generated notes</strong>
+            <small>When off, notes only enter the system clipboard after an explicit copy click.</small>
+          </span>
+        </label>
       </div>
 
       <!-- SECTION: Medical Terminology -->

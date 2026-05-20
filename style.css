@@ -117,6 +117,18 @@ header {
   color: var(--text-dim);
 }
 
+.privacy-status {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--green);
+  border: 1px solid rgba(0, 229, 160, 0.28);
+  background: var(--green-glow-sm);
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  white-space: nowrap;
+}
+
 .status-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
@@ -723,6 +735,7 @@ footer a:hover { color: var(--green); }
   .panel-output { height: auto; min-height: 400px; }
   header { padding: 0 1rem; }
   .logo-tag { display: none; }
+  .privacy-status { display: none; }
 }
 
 /* ===================== SETTINGS GEAR BUTTON ===================== */
@@ -884,6 +897,43 @@ footer a:hover { color: var(--green); }
   background: rgba(0, 229, 160, 0.08);
   padding: 0 4px;
   border-radius: 2px;
+}
+
+.settings-check {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.settings-check input {
+  width: 16px;
+  height: 16px;
+  margin-top: 0.1rem;
+  accent-color: var(--green);
+}
+
+.settings-check span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.settings-check strong {
+  font-size: 0.78rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.settings-check small {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  line-height: 1.45;
 }
 
 .settings-label {
