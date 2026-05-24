@@ -223,8 +223,112 @@ const DEFAULTS = {
     "Motrin",
     "Pedialyte"
   ],
-  cleanupPrompt: `You are a medical transcription editor. Your task is to clean up a rough ASR (Automated Speech Recognition) dictation transcript. \n- Fix any spelling errors, phonetic mistakes, and correct medical terminology.\n- Remove disfluencies, filler words, and false starts.\n- Add proper punctuation and capitalization.\n- Do NOT change the clinical meaning, add any new information, or reformat into a list.\n- Output ONLY the continuous cleaned transcript paragraph.`,
-  mainPrompt: `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.\n\n# OUTPUT FORMAT\n\nFor each diagnosis/problem mentioned, present bullets in this order when present:\n\nDiagnosis or Problem Name\n- Labs\n- Imaging\n- Medications with exact doses if stated\n- Treatment / plan actions\n- Supportive care\n- Differential if mentioned\n- Conditional plans if mentioned\n- Return precautions if mentioned\n- Nursing orders if mentioned\n- Follow-Up if mentioned\n\nSeparate each problem with one blank line.\n\n# STYLE RULES\n\n- Use concise telegraphic bullets only\n- No full sentences unless necessary for clarity\n- No commentary, explanation, or preamble\n- Output ONLY the note\n- Do not use markdown formatting — no asterisks, no pound signs, plain text only\n- Include only information explicitly stated or clearly implied\n- Do not invent diagnoses, medications, labs, imaging, or follow-up\n- Preserve clinician wording when reasonable\n- Keep diagnoses in order mentioned\n- Do not create empty categories or placeholder bullets\n- Medication names and doses must match dictation exactly — omit dose if not stated\n- Use the explicit diagnosis or condition name as the heading, not presenting symptoms\n- If the clinician states a diagnosis, always prefer it over symptom descriptors as the heading\n\n# FORMATTING RULES\n\n- Differentials format:\n  Differential includes X, Y, Z\n\n- Return precautions format:\n  Return precautions include...\n\n- Follow-up format:\n  Follow-Up: ...\n\n# BOILERPLATE TAGS\n\nAfter all problem blocks, emit the appropriate tag(s) on their own line when the condition is present.\nDo not write the boilerplate text yourself — emit only the tag exactly as shown.\n\n{BOILERPLATE_TRIGGER_LIST}\n\nMultiple tags may apply. Each tag goes on its own line after the last problem block.\n\n# EXAMPLES\n\nDictation: "patient has acute otitis media, plan to treat with amoxicillin 90mg per kg per day divided twice daily, also tylenol motrin and hydration, return precautions for worsening fever or pain, follow up as needed"\n\nAcute Otitis Media\n- Amoxicillin 90mg/kg/day divided BID\n- Tylenol, Motrin, hydration\n- Return precautions include worsening fever, pain, failure to improve\n- Follow-Up: PRN\n[BOILERPLATE:ILLNESS]\n[BOILERPLATE:OTITIS]\n\n---\n\nDictation: "patient presenting with cough and fever, exam with right lower lobe crackles, diagnosis is community acquired pneumonia, treating with amoxicillin, also supportive care with tylenol motrin and fluids, return precautions for increased work of breathing, follow up as needed"\n\nCommunity-Acquired Pneumonia, right lower lobe\n- Amoxicillin\n- Tylenol, Motrin, fluids\n- Return precautions include increased work of breathing\n- Follow-Up: PRN\n[BOILERPLATE:ILLNESS]\n[BOILERPLATE:RESP]\n\n---\n\nDictation: "ADHD combined type, increasing concerta from 18 to 27mg daily, placing counseling referral, follow up in three months"\n\nADHD, combined\n- Concerta increased from 18mg to 27mg PO daily\n- Counseling referral placed\n- Follow-Up: 3 months\n[BOILERPLATE:PCMH]\n\n---\n\nDictation: "well child check, growing and developing well, anticipatory guidance discussed, all questions addressed, follow up in one year"\n\nWell Child Check\n- Growing and developing well\n- Anticipatory guidance discussed\n- Questions addressed\n- Follow-Up: 1 year/PRN\n[BOILERPLATE:WCC]`,
+  cleanupPrompt: `You are a medical transcription editor. Your task is to clean up a rough ASR (Automated Speech Recognition) dictation transcript. 
+- Fix any spelling errors, phonetic mistakes, and correct medical terminology.
+- Remove disfluencies, filler words, and false starts.
+- Add proper punctuation and capitalization.
+- Do NOT change the clinical meaning, add any new information, or reformat into a list.
+- Output ONLY the continuous cleaned transcript paragraph.`,
+  mainPrompt: `You are a clinical documentation assistant that converts clinician dictation into concise telegraphic assessment and plan notes.
+
+# OUTPUT FORMAT
+
+For each diagnosis/problem mentioned, present bullets in this order when present:
+
+Diagnosis or Problem Name
+- Labs
+- Imaging
+- Medications with exact doses if stated
+- Treatment / plan actions
+- Supportive care
+- Differential if mentioned
+- Conditional plans if mentioned
+- Return precautions if mentioned
+- Nursing orders if mentioned
+- Follow-Up if mentioned
+
+Separate each problem with one blank line.
+
+# STYLE RULES
+
+- Use concise telegraphic bullets only
+- No full sentences unless necessary for clarity
+- No commentary, explanation, or preamble
+- Output ONLY the note
+- Do not use markdown formatting — no asterisks, no pound signs, plain text only
+- Include only information explicitly stated or clearly implied
+- Do not invent diagnoses, medications, labs, imaging, or follow-up
+- Preserve clinician wording when reasonable
+- Keep diagnoses in order mentioned
+- Do not create empty categories or placeholder bullets
+- Medication names and doses must match dictation exactly — omit dose if not stated
+- Use the explicit diagnosis or condition name as the heading, not presenting symptoms
+- If the clinician states a diagnosis, always prefer it over symptom descriptors as the heading
+
+# FORMATTING RULES
+
+- Differentials format:
+  Differential includes X, Y, Z
+
+- Return precautions format:
+  Return precautions include...
+
+- Follow-up format:
+  Follow-Up: ...
+
+# BOILERPLATE TAGS
+
+After all problem blocks, emit the appropriate tag(s) on their own line when the condition is present.
+Do not write the boilerplate text yourself — emit only the tag exactly as shown.
+
+{BOILERPLATE_TRIGGER_LIST}
+
+Multiple tags may apply. Each tag goes on its own line after the last problem block.
+
+# EXAMPLES
+
+Dictation: "patient has acute otitis media, plan to treat with amoxicillin 90mg per kg per day divided twice daily, also tylenol motrin and hydration, return precautions for worsening fever or pain, follow up as needed"
+
+Acute Otitis Media
+- Amoxicillin 90mg/kg/day divided BID
+- Tylenol, Motrin, hydration
+- Return precautions include worsening fever, pain, failure to improve
+- Follow-Up: PRN
+[BOILERPLATE:ILLNESS]
+[BOILERPLATE:OTITIS]
+
+---
+
+Dictation: "patient presenting with cough and fever, exam with right lower lobe crackles, diagnosis is community acquired pneumonia, treating with amoxicillin, also supportive care with tylenol motrin and fluids, return precautions for increased work of breathing, follow up as needed"
+
+Community-Acquired Pneumonia, right lower lobe
+- Amoxicillin
+- Tylenol, Motrin, fluids
+- Return precautions include increased work of breathing
+- Follow-Up: PRN
+[BOILERPLATE:ILLNESS]
+[BOILERPLATE:RESP]
+
+---
+
+Dictation: "ADHD combined type, increasing concerta from 18 to 27mg daily, placing counseling referral, follow up in three months"
+
+ADHD, combined
+- Concerta increased from 18mg to 27mg PO daily
+- Counseling referral placed
+- Follow-Up: 3 months
+[BOILERPLATE:PCMH]
+
+---
+
+Dictation: "well child check, growing and developing well, anticipatory guidance discussed, all questions addressed, follow up in one year"
+
+Well Child Check
+- Growing and developing well
+- Anticipatory guidance discussed
+- Questions addressed
+- Follow-Up: 1 year/PRN
+[BOILERPLATE:WCC]`,
   boilerplate: [
     { key: "WCC", trigger: "Well child check or health maintenance discussed", text: "All forms, labs, immunizations, and patient concerns reviewed and addressed appropriately. Screening questions, past medical history, past social history, medications, and growth chart reviewed. Age-appropriate anticipatory guidance reviewed and printed in AVS. Parent questions addressed." },
     { key: "ILLNESS", trigger: "Any illness (infection, virus, fever, etc.) discussed", text: "Recommended supportive care with OTC medications as needed. Return precautions given including increasing pain, worsening fever, dehydration, new symptoms, prolonged symptoms, worsening symptoms, and other concerns. Caregiver expressed understanding and agreement with treatment plan." },
@@ -303,7 +407,7 @@ function getBoilerplateMap() {
 function buildBoilerplateTriggerList() {
   return settings.boilerplate
     .filter(e => e.key && e.trigger && e.text)
-    .map(e => `- ${e.trigger.trim()} \u2192 [BOILERPLATE:${e.key.trim().toUpperCase()}]`)
+    .map(e => `- ${e.trigger.trim()} → [BOILERPLATE:${e.key.trim().toUpperCase()}]`)
     .join("\n");
 }
 function getCleanupSystemPrompt() {
@@ -543,12 +647,14 @@ async function setupAudioRecording() {
     document.getElementById("micBtn").disabled = true;
   }
 }
+
 async function transcribeAudio(blob) {
   if (!transcriber) return;
   const ta = document.getElementById("transcriptText");
-  ta.value = ""; ta.placeholder = "Transcribing securely in browser\u2026";
+  
   ta.readOnly = true; ta.classList.remove("is-editable");
-  document.getElementById("transcriptLabel").textContent = "Transcript";
+  document.getElementById("transcriptLabel").textContent = "Transcribing securely in browser\u2026";
+  
   try {
     const arrayBuffer = await blob.arrayBuffer();
     // Decode at the browser's native sample rate. Forcing sampleRate: 16000 on the
@@ -576,28 +682,38 @@ async function transcribeAudio(blob) {
       audioData = resampled.getChannelData(0);
     }
 
+    // Process without chunking to enforce the 30-second limit
     const result = await transcriber(audioData, {
-      chunk_length_s: 29,
-      stride_length_s: 5,
       return_timestamps: true,
       repetition_penalty: 1.3,
       no_repeat_ngram_size: 5
     });
-    transcript = result.text.trim();
-    if (transcript) {
-      ta.value = transcript; ta.readOnly = false; ta.classList.add("is-editable");
+    
+    const newText = result.text.trim();
+    
+    if (newText) {
+      // Append the new text. If transcript isn't empty, add a double newline first.
+      transcript = transcript ? (transcript + "\n\n" + newText) : newText;
+      ta.value = transcript; 
+      ta.readOnly = false; ta.classList.add("is-editable");
       document.getElementById("transcriptLabel").textContent = "Transcript \u2014 editable";
       ta.oninput = () => { transcript = ta.value; updateProcessBtn(); };
-    } else { ta.value = ""; ta.placeholder = "No speech detected."; }
+    } else {
+      // If nothing was detected, just return the UI to normal without changing the transcript
+      ta.readOnly = false; ta.classList.add("is-editable");
+      document.getElementById("transcriptLabel").textContent = "Transcript \u2014 editable";
+    }
+    
     document.getElementById("micHint").textContent = "Click to begin recording";
     updateProcessBtn();
   } catch (err) {
     console.error("Transcription error:", err);
-    ta.value = ""; ta.placeholder = "Failed to transcribe audio.";
-    ta.readOnly = true; ta.classList.remove("is-editable");
+    ta.readOnly = false; ta.classList.add("is-editable");
+    document.getElementById("transcriptLabel").textContent = "Transcription failed.";
     document.getElementById("micHint").textContent = "Click to begin recording";
   }
 }
+
 // ─── Circular Audio Waveform Visualizer ──────────────────────────────────────
 function startVisualizer() {
   const stream = recordingStream || (mediaRecorder && mediaRecorder.stream);
@@ -708,6 +824,7 @@ function stopVisualizer() {
 }
 
 window.toggleRecording = async function() { if (isRecording) stopRecording(); else await startRecording(); };
+
 async function startRecording() {
   if (!mediaRecorder) { await setupAudioRecording(); if (!mediaRecorder) return; }
   audioChunks = []; mediaRecorder.start(); isRecording = true;
@@ -716,13 +833,16 @@ async function startRecording() {
   document.getElementById("micBtn").style.cssText = "";
   document.getElementById("micHint").textContent = "Listening\u2026 speak your assessment and plan";
   document.getElementById("recordingTimer").style.display = "flex";
+  
   const ta = document.getElementById("transcriptText");
-  ta.value = ""; ta.placeholder = "Recording in progress\u2026 Processing starts when you stop.";
+  // Lock the textarea and update the label, but leave the text intact
   ta.readOnly = true; ta.classList.remove("is-editable");
-  document.getElementById("transcriptLabel").textContent = "Transcript";
+  document.getElementById("transcriptLabel").textContent = "Recording in progress\u2026";
+  
   timerSeconds = 0; updateTimer();
   timerInterval = setInterval(updateTimer, 1000);
 }
+
 function stopRecording() {
   isRecording = false; mediaRecorder.stop();
   stopVisualizer();
@@ -838,8 +958,8 @@ function resetPipelineStepOutputs() {
 function renderPipelineRichText(raw) {
   function inlineMarkdown(text) {
     return escHtml(text)
-      .replace(/\*\*([^*\n][\s\S]*?[^*\n])\*\*/g, "<strong>$1</strong>")
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+      .replace(/\*\*([^\*\n][\s\S]*?[^\*\n])\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^\*])\*([^\*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
       .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1<em>$2</em>");
   }
 
