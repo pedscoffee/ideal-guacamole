@@ -1,4 +1,4 @@
-const CACHE_VERSION = "present-pwa-v2";
+const CACHE_VERSION = "present-pwa-v3";
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -41,12 +41,15 @@ function isCacheableRequest(request) {
   return url.protocol === "https:" && isCacheableRemoteHost(url.hostname);
 }
 
-// WebLLM and Transformers.js manage their own Cache API entries for large model weight
-// files. Intercepting those in the SW and trying to cache them a second time causes
-// competing cache.put() calls on the same response stream, which produces ERR_FAILED.
-// Skip SW-level caching for these files and let the libraries handle them directly.
+// WebLLM (.bin shards) and Transformers.js (.onnx / .ort Whisper models) both manage
+// their own Cache API entries for large model weight files. Calling event.respondWith()
+// for these fetches — even just to pass them through — adds SW async overhead across
+// every chunk of a multi-GB download, which destabilises the response stream and causes
+// the libraries' internal cache.add() calls to fail with NetworkError.
+// Returning from the fetch handler WITHOUT calling respondWith() lets the browser handle
+// these fetches natively, completely outside the SW, so the library caches work cleanly.
 function isModelWeightFile(url) {
-  return /\.(bin|safetensors|gguf|ot)(\?.*)?$/i.test(url.pathname);
+  return /\.(bin|safetensors|gguf|ot|onnx|ort)(\?.*)?$/i.test(url.pathname);
 }
 
 async function putIfUsable(cache, request, response) {
@@ -81,9 +84,15 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-  if (!isCacheableRequest(request)) return;
-
   const url = new URL(request.url);
+
+  // Do not intercept model weight file fetches at all. WebLLM and Transformers.js
+  // manage Cache API entries for .bin, .onnx, .ort, etc. themselves. Any SW
+  // respondWith() call over these large downloads — even a pass-through — is enough
+  // to trigger Cache.add() NetworkError inside the ML libraries.
+  if (request.method === "GET" && isModelWeightFile(url)) return;
+
+  if (!isCacheableRequest(request)) return;
 
   if (request.mode === "navigate") {
     event.respondWith((async () => {
@@ -118,13 +127,8 @@ self.addEventListener("fetch", (event) => {
 
     try {
       const response = await fetch(request);
-      // Skip SW-level caching for model weight shards (.bin, .safetensors, etc.).
-      // WebLLM / Transformers.js manage those caches directly; double-caching
-      // the same response stream causes ERR_FAILED on the model download.
-      if (isModelWeightFile(url)) return response;
       return putIfUsable(await caches.open(RUNTIME_CACHE), request, response);
     } catch (err) {
-      // Network failure with nothing cached — propagate so the library sees it.
       throw err;
     }
   })());
