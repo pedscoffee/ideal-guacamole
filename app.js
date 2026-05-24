@@ -493,6 +493,7 @@ async function transcribeAudio(blob) {
     const result = await transcriber(audioBuffer.getChannelData(0), {
       chunk_length_s: 30,
       stride_length_s: 5,
+      return_timestamps: true
     });
     transcript = result.text.trim();
     if (transcript) {
