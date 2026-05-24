@@ -41,10 +41,23 @@ function isCacheableRequest(request) {
   return url.protocol === "https:" && isCacheableRemoteHost(url.hostname);
 }
 
+// WebLLM and Transformers.js manage their own Cache API entries for large model weight
+// files. Intercepting those in the SW and trying to cache them a second time causes
+// competing cache.put() calls on the same response stream, which produces ERR_FAILED.
+// Skip SW-level caching for these files and let the libraries handle them directly.
+function isModelWeightFile(url) {
+  return /\.(bin|safetensors|gguf|ot)(\?.*)?$/i.test(url.pathname);
+}
+
 async function putIfUsable(cache, request, response) {
   if (!response) return response;
   if (response.ok || response.type === "opaque" || response.type === "cors") {
-    await cache.put(request, response.clone());
+    try {
+      await cache.put(request, response.clone());
+    } catch {
+      // Swallow NetworkError / QuotaExceededError thrown when a large response stream
+      // is interrupted mid-read during caching. The live response is still returned.
+    }
   }
   return response;
 }
@@ -103,8 +116,17 @@ self.addEventListener("fetch", (event) => {
     const cached = await caches.match(request);
     if (cached) return cached;
 
-    const response = await fetch(request);
-    return putIfUsable(await caches.open(RUNTIME_CACHE), request, response);
+    try {
+      const response = await fetch(request);
+      // Skip SW-level caching for model weight shards (.bin, .safetensors, etc.).
+      // WebLLM / Transformers.js manage those caches directly; double-caching
+      // the same response stream causes ERR_FAILED on the model download.
+      if (isModelWeightFile(url)) return response;
+      return putIfUsable(await caches.open(RUNTIME_CACHE), request, response);
+    } catch (err) {
+      // Network failure with nothing cached — propagate so the library sees it.
+      throw err;
+    }
   })());
 });
 

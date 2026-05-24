@@ -526,10 +526,14 @@ async function setupAudioRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordingStream = stream;
-    mediaRecorder = new MediaRecorder(stream);
+    // Pick the best codec the browser supports, falling back gracefully.
+    const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"]
+      .find(type => MediaRecorder.isTypeSupported(type)) ?? "";
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    const blobType = mimeType || "audio/webm";
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
-      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      const blob = new Blob(audioChunks, { type: blobType });
       audioChunks = [];
       await transcribeAudio(blob);
     };
@@ -547,9 +551,32 @@ async function transcribeAudio(blob) {
   document.getElementById("transcriptLabel").textContent = "Transcript";
   try {
     const arrayBuffer = await blob.arrayBuffer();
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    const result = await transcriber(audioBuffer.getChannelData(0), {
+    // Decode at the browser's native sample rate. Forcing sampleRate: 16000 on the
+    // AudioContext before decodeAudioData causes EncodingError in some Chrome builds.
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let audioBuffer;
+    try {
+      audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    } catch (decodeErr) {
+      console.error("Audio decode failed:", decodeErr);
+      throw new Error("Unable to decode audio. Try recording again or use the Text input tab.");
+    }
+
+    // Resample to 16000 Hz using OfflineAudioContext if the native rate differs.
+    // Whisper expects 16 kHz Float32 input.
+    let audioData = audioBuffer.getChannelData(0);
+    if (audioBuffer.sampleRate !== 16000) {
+      const targetLength = Math.ceil(audioBuffer.duration * 16000);
+      const offlineCtx = new OfflineAudioContext(1, targetLength, 16000);
+      const source = offlineCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(offlineCtx.destination);
+      source.start(0);
+      const resampled = await offlineCtx.startRendering();
+      audioData = resampled.getChannelData(0);
+    }
+
+    const result = await transcriber(audioData, {
       chunk_length_s: 30,
       stride_length_s: 5,
       return_timestamps: true,
