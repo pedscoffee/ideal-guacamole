@@ -16,6 +16,7 @@ Present is designed for on-device processing:
 - There is no application backend, user account system, server-side database, analytics pipeline, or cloud AI inference endpoint in this repo.
 - Clinical text and audio are not intentionally transmitted to the app author or to an external AI service.
 - Settings are stored in browser `localStorage`; patient note content is held in page memory and copied to the clipboard for clinician use.
+- The app is installable as a PWA. Its service worker caches the app shell and approved static dependency/model assets for offline local use after first setup.
 
 For the easiest IT approval path, treat Present as a tool that may process PHI locally on an approved workstation, rather than depending on users to de-identify every dictation before use.
 
@@ -56,7 +57,7 @@ flowchart LR
 | Generated note | Browser | Browser memory | Visible/editable in page memory; copied to clipboard |
 | Prompt settings | Settings drawer | Browser | Stored in `localStorage` |
 | Boilerplate, macros, terminology list, model choices | Settings drawer | Browser | Stored in `localStorage` |
-| Model/library assets | Remote static hosts by default | Browser cache/runtime | Cached by browser according to normal browser behavior |
+| Model/library assets | Remote static hosts by default | Browser cache/runtime | Cached by the PWA service worker and normal browser model caches after first load |
 
 ## PHI Handling Position
 
@@ -83,7 +84,7 @@ Reference: HHS guidance on de-identification: https://www.hhs.gov/hipaa/for-prof
 
 ## Network Behavior
 
-The application has no backend service and does not intentionally submit patient content to a server. However, the default GitHub Pages deployment loads static assets from third-party origins:
+The application has no backend service and does not intentionally submit patient content to a server. However, the default GitHub Pages deployment loads static assets from third-party origins during first setup and whenever an uncached model/dependency is selected:
 
 | Origin | Purpose | Patient content intentionally sent? |
 |---|---|---|
@@ -91,10 +92,11 @@ The application has no backend service and does not intentionally submit patient
 | `esm.run` | Loads WebLLM JavaScript module | No |
 | `cdn.jsdelivr.net` | Loads Transformers.js module | No |
 | Model hosting/cache endpoints used by WebLLM and Transformers.js | Downloads model files | No |
-| `fonts.googleapis.com` and `fonts.gstatic.com` | Loads IBM Plex fonts | No |
 | Linked documentation sites such as GitHub, WebLLM, Hugging Face | Footer/README links only | No, unless the user clicks links |
 
-IT teams may still want to restrict third-party runtime dependencies for supply-chain, availability, or policy reasons. For a stricter enterprise deployment, host the app, JavaScript dependencies, fonts, and model assets from an institution-controlled origin and update the import/model configuration accordingly.
+The service worker (`sw.js`) pre-caches same-origin app files and runtime-caches approved dependency/model hosts as they are requested. After the selected models finish loading once, the installed PWA can be reopened without a network connection and run from local caches.
+
+IT teams may still want to restrict third-party runtime dependencies for supply-chain, availability, or policy reasons. For a stricter enterprise deployment, host the app, JavaScript dependencies, and model assets from an institution-controlled origin and update the import/model configuration accordingly.
 
 ## Storage Behavior
 
@@ -116,8 +118,10 @@ Patient-specific details should not be stored in those settings. The app does no
 Recommended controls for institutional approval:
 
 - Serve from an approved internal origin or approved static hosting environment.
-- Self-host dependencies, fonts, and model assets when required by policy.
+- Self-host dependencies and model assets when required by policy.
 - Use HTTPS.
+- Install as a PWA only from a trusted HTTPS or `localhost` origin.
+- Load and verify the selected model cache before relying on offline use.
 - Restrict use to managed browsers/devices.
 - Confirm browser WebGPU support and local model compatibility.
 - Disable browser extensions that can read page content unless approved.
@@ -140,7 +144,8 @@ Reference: HHS HIPAA cloud computing guidance: https://www.hhs.gov/hipaa/for-pro
 - The app does not guarantee HIPAA Safe Harbor de-identification.
 - The app does not detect all PHI in free text.
 - Browser extensions, OS clipboard managers, screen recording tools, and endpoint compromise are outside the app's control.
-- Model files and third-party JavaScript are loaded from external origins in the default GitHub Pages deployment.
+- New or changed model choices require reconnecting once so those assets can be downloaded and cached.
+- Model files and third-party JavaScript are loaded from external origins during first setup in the default GitHub Pages deployment.
 
 ## Suggested IT Approval Language
 

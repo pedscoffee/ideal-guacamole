@@ -5,6 +5,7 @@ import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.1.2/dist/transformers.min.js";
 
 env.allowLocalModels = false;
+env.useBrowserCache = true;
 
 // ─── Model Catalogs ───────────────────────────────────────────────────────
 const LLM_MODELS = {
@@ -380,12 +381,70 @@ let visualizerAnalyser = null;
 let visualizerSource = null;
 let visualizerAnimationId = null;
 
+// ─── PWA / Offline readiness ─────────────────────────────────────────────
+function setPwaStatus(state, text) {
+  const dot = document.getElementById("pwaDot");
+  const label = document.getElementById("pwaStatusText");
+  if (!dot || !label) return;
+  dot.className = "pwa-dot " + state;
+  label.textContent = text;
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    setPwaStatus("error", "PWA unavailable");
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    await navigator.serviceWorker.ready;
+    setPwaStatus(navigator.onLine ? "loading" : "ready", navigator.onLine ? "Caching enabled" : "Offline local");
+    registration.update().catch(() => {});
+    await checkOfflineReadiness();
+  } catch (err) {
+    console.error("Service worker registration failed:", err);
+    setPwaStatus("error", "Cache unavailable");
+  }
+}
+
+window.checkOfflineReadiness = async function() {
+  const status = document.getElementById("offlineCacheStatus");
+  try {
+    if (!("caches" in window)) throw new Error("Browser cache API unavailable.");
+    const cacheNames = await caches.keys();
+    const appCaches = cacheNames.filter(name => name.startsWith("present-pwa-") && name.endsWith("-app"));
+    const runtimeCaches = cacheNames.filter(name => name.startsWith("present-pwa-") && name.endsWith("-runtime"));
+    const appAssets = (await Promise.all(appCaches.map(async name => (await caches.open(name)).keys()))).flat().length;
+    const runtimeAssets = (await Promise.all(runtimeCaches.map(async name => (await caches.open(name)).keys()))).flat().length;
+    const selectedModelsReady = runtimeAssets > 0 && isModelReady;
+    const readyText = selectedModelsReady
+      ? `App shell cached (${appAssets}); selected models loaded and runtime assets cached (${runtimeAssets}).`
+      : runtimeAssets > 0
+        ? `App shell cached (${appAssets}); runtime assets cached (${runtimeAssets}). Let selected models finish loading before offline use.`
+      : `App shell cached (${appAssets}); load selected models once to cache them for offline use.`;
+    if (status) status.textContent = readyText;
+    setPwaStatus(selectedModelsReady ? "ready" : "loading", selectedModelsReady ? "Offline ready" : "Load models once");
+  } catch (err) {
+    const text = err.message || "Unable to verify offline cache.";
+    if (status) status.textContent = text;
+    setPwaStatus(navigator.onLine ? "loading" : "error", navigator.onLine ? "Reload to finish PWA" : "Offline cache unknown");
+  }
+};
+
+window.addEventListener("online", () => {
+  setPwaStatus("loading", "Online/cache enabled");
+  checkOfflineReadiness();
+});
+window.addEventListener("offline", () => setPwaStatus("ready", "Offline local"));
+
 function checkModelsReady() {
   if (isLLMReady && isWhisperReady) {
     isModelReady = true;
     setStatus("ready", "Models ready");
     showProgress(false);
     updateProcessBtn();
+    checkOfflineReadiness();
   }
 }
 
@@ -493,7 +552,7 @@ async function transcribeAudio(blob) {
     const result = await transcriber(audioBuffer.getChannelData(0), {
       chunk_length_s: 30,
       stride_length_s: 5,
-      return_timestamps: true
+      return_timestamps: true,
       repetition_penalty: 1.3,
       no_repeat_ngram_size: 5
     });
@@ -1347,5 +1406,6 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────
+registerServiceWorker();
 initMacroExpanders();
 initModel();

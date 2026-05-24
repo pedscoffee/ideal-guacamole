@@ -26,6 +26,7 @@ For patient-data and IT review details, see [SECURITY.md](SECURITY.md).
 - Editable output: revise the final note before pasting into the EMR.
 - Auto-copy and manual copy: copy the full note or individual problem blocks.
 - Local settings: prompts, boilerplate, models, terminology, macros, and pipeline steps persist in `localStorage`.
+- Installable PWA: app shell, dependencies, and fetched model assets are cached for offline local use after first load.
 - Static deployment: no backend, no database, no account system, and no cloud AI API.
 
 ---
@@ -40,7 +41,7 @@ Present is designed for local/on-device clinical documentation:
 - Patient text/audio is not intentionally sent to an external AI service or application backend.
 - Generated note content is held in the browser session and copied to the clipboard for clinician use.
 
-The default hosted app does load JavaScript, fonts, and model assets from third-party static origins. For stricter institutional review, deploy a self-hosted version where app files, dependencies, fonts, and model assets are served from an approved institution-controlled origin.
+The default hosted app loads JavaScript dependencies and model assets from third-party static origins during first setup. After those assets are fetched, the PWA service worker and browser caches allow local offline use. For stricter institutional review, deploy a self-hosted version where app files, dependencies, and model assets are served from an approved institution-controlled origin.
 
 ---
 
@@ -56,6 +57,25 @@ The default hosted app does load JavaScript, fonts, and model assets from third-
 8. Paste into the EMR, or copy individual problem blocks as needed.
 
 Always review AI-generated notes before use in the medical record.
+
+## PWA / Offline Local Use
+
+Present can be installed as a local PWA from a trusted HTTPS origin or from `localhost`.
+
+1. Open the app while online.
+2. Let the selected LLM and Whisper models finish loading.
+3. Open Settings -> Local Security -> Check offline cache.
+4. Install the app from the browser toolbar/menu.
+5. Disconnect from the network and reopen the installed app to confirm it starts locally.
+
+The app shell is pre-cached by `sw.js`. Runtime dependencies and model files are cached as they are requested from the approved static model/dependency hosts. If you switch to a different model, reconnect once and let that model finish loading before relying on offline use.
+
+Security notes:
+
+- Use HTTPS or `localhost`; browsers require a secure context for service workers, microphone access, and WebGPU.
+- The service worker does not add any backend, analytics, or remote logging.
+- Patient note text is still transient page memory and clipboard content; it is not intentionally written to `localStorage`.
+- Browser extensions, OS clipboard managers, endpoint security posture, and device access controls remain institution responsibilities.
 
 ---
 
@@ -188,11 +208,11 @@ No build step is required.
 For institutional review, consider hosting the following from an approved origin:
 
 - `index.html`, `style.css`, `app.js`, and `favicon.svg`.
+- `manifest.webmanifest` and `sw.js`.
 - WebLLM JavaScript dependency.
 - Transformers.js dependency.
 - LLM model assets.
 - Whisper model assets.
-- Fonts.
 
 See [SECURITY.md](SECURITY.md) for the data-flow table, network disclosure, PHI handling statement, and suggested IT approval language.
 

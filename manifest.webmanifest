@@ -1,0 +1,20 @@
+{
+  "name": "Present - AI-Assisted A&P Notes",
+  "short_name": "Present",
+  "description": "Local-first clinical A&P note generation with on-device speech-to-text and LLM inference.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "orientation": "any",
+  "categories": ["medical", "productivity"],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
