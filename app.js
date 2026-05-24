@@ -490,7 +490,10 @@ async function transcribeAudio(blob) {
     const arrayBuffer = await blob.arrayBuffer();
     const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    const result = await transcriber(audioBuffer.getChannelData(0));
+    const result = await transcriber(audioBuffer.getChannelData(0), {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+    });
     transcript = result.text.trim();
     if (transcript) {
       ta.value = transcript; ta.readOnly = false; ta.classList.add("is-editable");
