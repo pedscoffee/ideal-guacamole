@@ -577,7 +577,7 @@ async function transcribeAudio(blob) {
     }
 
     const result = await transcriber(audioData, {
-      chunk_length_s: 30,
+      chunk_length_s: 29,
       stride_length_s: 5,
       return_timestamps: true,
       repetition_penalty: 1.3,
