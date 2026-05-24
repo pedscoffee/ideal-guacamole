@@ -494,6 +494,8 @@ async function transcribeAudio(blob) {
       chunk_length_s: 30,
       stride_length_s: 5,
       return_timestamps: true
+      repetition_penalty: 1.3,
+      no_repeat_ngram_size: 5
     });
     transcript = result.text.trim();
     if (transcript) {
