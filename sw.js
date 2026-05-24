@@ -1,4 +1,4 @@
-const CACHE_VERSION = "present-pwa-v3";
+const CACHE_VERSION = "present-pwa-v4"; // Bumped version to force update
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -11,45 +11,26 @@ const APP_SHELL = [
   "./manifest.webmanifest"
 ];
 
+// Only cache the JS library CDNs.
+// DO NOT cache Hugging Face, GitHub, or MLC domains. The ML libraries handle those natively.
 const CACHEABLE_REMOTE_HOSTS = new Set([
   "esm.run",
-  "cdn.jsdelivr.net",
-  "huggingface.co",
-  "raw.githubusercontent.com",
-  "github.com",
-  "objects.githubusercontent.com",
-  "media.githubusercontent.com",
-  "mlc.ai",
-  "webllm.mlc.ai",
-  "cas-bridge.xethub.hf.co",
-  "transfer.xethub.hf.co"
+  "cdn.jsdelivr.net"
 ]);
 
 function isCacheableRemoteHost(hostname) {
-  return CACHEABLE_REMOTE_HOSTS.has(hostname)
-    || hostname.endsWith(".huggingface.co")
-    || hostname.endsWith(".xethub.hf.co")
-    || hostname.endsWith(".githubusercontent.com")
-    || hostname.endsWith(".mlc.ai");
+  return CACHEABLE_REMOTE_HOSTS.has(hostname);
 }
 
 function isCacheableRequest(request) {
   if (request.method !== "GET") return false;
-
   const url = new URL(request.url);
+  
+  // Cache local assets
   if (url.origin === self.location.origin) return true;
+  
+  // Cache only approved CDNs (ignoring all model endpoints)
   return url.protocol === "https:" && isCacheableRemoteHost(url.hostname);
-}
-
-// WebLLM (.bin shards) and Transformers.js (.onnx / .ort Whisper models) both manage
-// their own Cache API entries for large model weight files. Calling event.respondWith()
-// for these fetches — even just to pass them through — adds SW async overhead across
-// every chunk of a multi-GB download, which destabilises the response stream and causes
-// the libraries' internal cache.add() calls to fail with NetworkError.
-// Returning from the fetch handler WITHOUT calling respondWith() lets the browser handle
-// these fetches natively, completely outside the SW, so the library caches work cleanly.
-function isModelWeightFile(url) {
-  return /\.(bin|safetensors|gguf|ot|onnx|ort)(\?.*)?$/i.test(url.pathname);
 }
 
 async function putIfUsable(cache, request, response) {
@@ -58,8 +39,7 @@ async function putIfUsable(cache, request, response) {
     try {
       await cache.put(request, response.clone());
     } catch {
-      // Swallow NetworkError / QuotaExceededError thrown when a large response stream
-      // is interrupted mid-read during caching. The live response is still returned.
+      // Swallow quota errors cleanly
     }
   }
   return response;
@@ -77,6 +57,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const expected = new Set([APP_CACHE, RUNTIME_CACHE]);
     const keys = await caches.keys();
+    // Clear out the old v3 caches that are bogged down with massive duplicated model weights
     await Promise.all(keys.map((key) => expected.has(key) ? undefined : caches.delete(key)));
     await self.clients.claim();
   })());
@@ -86,14 +67,10 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Do not intercept model weight file fetches at all. WebLLM and Transformers.js
-  // manage Cache API entries for .bin, .onnx, .ort, etc. themselves. Any SW
-  // respondWith() call over these large downloads — even a pass-through — is enough
-  // to trigger Cache.add() NetworkError inside the ML libraries.
-  if (request.method === "GET" && isModelWeightFile(url)) return;
-
+  // If the request isn't for our app shell or UI CDNs, let the browser handle it normally.
   if (!isCacheableRequest(request)) return;
 
+  // Handle HTML navigation
   if (request.mode === "navigate") {
     event.respondWith((async () => {
       try {
@@ -107,6 +84,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Handle local CSS, JS, SVG assets
   if (url.origin === self.location.origin) {
     event.respondWith((async () => {
       const cached = await caches.match(request);
@@ -121,6 +99,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Handle external CDNs (esm.run, jsdelivr)
   event.respondWith((async () => {
     const cached = await caches.match(request);
     if (cached) return cached;
