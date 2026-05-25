@@ -684,7 +684,8 @@ async function transcribeAudio(blob) {
 
     // Process without chunking to enforce the 30-second limit
     const result = await transcriber(audioData, {
-      return_timestamps: true,
+      chunk_length_s: 30,
+      return_timestamps: True,
       repetition_penalty: 1.3,
       no_repeat_ngram_size: 5
     });
