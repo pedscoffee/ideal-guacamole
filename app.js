@@ -480,15 +480,12 @@ let isRecording = false, mediaRecorder = null, audioChunks = [], recordingStream
 let transcript = "", timerInterval = null, timerSeconds = 0, currentTab = "mic";
 
 // ─── Chunked transcription constants ─────────────────────────────────────
-// Whisper has a hard 30-second context window. We slice decoded 16kHz Float32
-// audio into CHUNK_SAMPLES-sized windows with OVERLAP_SAMPLES of overlap so
-// words at chunk boundaries are not lost. Overlap text is deduplicated by
-// comparing the tail of the previous result to the head of the next.
-const WHISPER_SAMPLE_RATE = 16000;
-const CHUNK_SECONDS       = 27;   // safely under the 30s limit
-const OVERLAP_SECONDS     = 2;    // overlap to catch boundary words
-const CHUNK_SAMPLES       = CHUNK_SECONDS * WHISPER_SAMPLE_RATE;
-const OVERLAP_SAMPLES     = OVERLAP_SECONDS * WHISPER_SAMPLE_RATE;
+// Whisper has a hard 30-second context window. We use the pipeline's built-in
+// sliding window (chunk_length_s / stride_length_s) rather than manual slicing.
+// callback_function fires after every token so we can stream partial text live.
+// chunk_callback fires when each audio window is finalised.
+const WHISPER_CHUNK_LENGTH_S = 27;  // audio window per chunk (safely under 30s)
+const WHISPER_STRIDE_LENGTH_S = 2;  // overlap between consecutive chunks
 
 // Web Audio visualizer globals
 let visualizerAudioCtx = null;
@@ -677,12 +674,12 @@ async function decodeAudioTo16k(blob) {
     throw new Error("Unable to decode audio. Try recording again or use the Text input tab.");
   }
 
-  // Mix down to mono (take channel 0 — sufficient for speech)
-  let audioData = audioBuffer.getChannelData(0);
+  const SAMPLE_RATE = 16000;
+  let audioData = audioBuffer.getChannelData(0); // mono channel 0
 
-  if (audioBuffer.sampleRate !== WHISPER_SAMPLE_RATE) {
-    const targetLength = Math.ceil(audioBuffer.duration * WHISPER_SAMPLE_RATE);
-    const offlineCtx = new OfflineAudioContext(1, targetLength, WHISPER_SAMPLE_RATE);
+  if (audioBuffer.sampleRate !== SAMPLE_RATE) {
+    const targetLength = Math.ceil(audioBuffer.duration * SAMPLE_RATE);
+    const offlineCtx = new OfflineAudioContext(1, targetLength, SAMPLE_RATE);
     const source = offlineCtx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(offlineCtx.destination);
@@ -694,118 +691,90 @@ async function decodeAudioTo16k(blob) {
   return audioData;
 }
 
-/**
- * Slice a Float32Array into overlapping chunks of CHUNK_SAMPLES length.
- * Each chunk (except the first) starts OVERLAP_SAMPLES before the previous
- * chunk ended, so words at boundaries are captured in both chunks.
- * Returns an array of { data: Float32Array, chunkIndex, totalChunks }.
- */
-function sliceAudioIntoChunks(audioData) {
-  if (audioData.length <= CHUNK_SAMPLES) {
-    return [{ data: audioData, chunkIndex: 0, totalChunks: 1 }];
-  }
-
-  const chunks = [];
-  const step = CHUNK_SAMPLES - OVERLAP_SAMPLES;
-  let offset = 0;
-  while (offset < audioData.length) {
-    const end = Math.min(offset + CHUNK_SAMPLES, audioData.length);
-    chunks.push(audioData.slice(offset, end));
-    if (end === audioData.length) break;
-    offset += step;
-  }
-  return chunks.map((data, i) => ({ data, chunkIndex: i, totalChunks: chunks.length }));
-}
-
-/**
- * Remove the overlapping prefix from chunkText that was already captured at
- * the end of prevText. We compare word-by-word from the tail of prevText
- * against the head of chunkText and strip any matching run.
- *
- * This is intentionally conservative: we only strip a prefix if we find a
- * run of ≥3 consecutive matching words, to avoid false-positive deduplication.
- */
-function deduplicateOverlap(prevText, chunkText) {
-  if (!prevText || !chunkText) return chunkText;
-
-  const prevWords  = prevText.trim().split(/\s+/);
-  const chunkWords = chunkText.trim().split(/\s+/);
-
-  const MIN_MATCH = 3;
-  // Try progressively shorter tails of prevText against the head of chunkText
-  for (let tailLen = Math.min(prevWords.length, 20); tailLen >= MIN_MATCH; tailLen--) {
-    const tail = prevWords.slice(-tailLen).join(" ").toLowerCase();
-    const head = chunkWords.slice(0, tailLen).join(" ").toLowerCase();
-    if (tail === head) {
-      return chunkWords.slice(tailLen).join(" ");
-    }
-  }
-  return chunkText;
-}
-
 async function transcribeAudio(blob) {
   if (!transcriber) return;
   const ta = document.getElementById("transcriptText");
+  const labelEl = document.getElementById("transcriptLabel");
 
   ta.readOnly = true; ta.classList.remove("is-editable");
-  document.getElementById("transcriptLabel").textContent = "Transcribing securely in browser\u2026";
+  labelEl.textContent = "Transcribing securely in browser\u2026";
 
   try {
-    // 1. Decode the full recording to 16 kHz mono Float32
     const audioData = await decodeAudioTo16k(blob);
 
-    // 2. Slice into overlapping chunks (no-op for recordings ≤27 s)
-    const chunks = sliceAudioIntoChunks(audioData);
-    const isMultiChunk = chunks.length > 1;
+    // Estimate total chunks for the progress label.
+    // chunk_length_s=27, stride_length_s=2 → effective step = 25s per chunk.
+    const durationS = audioData.length / 16000;
+    const isMultiChunk = durationS > WHISPER_CHUNK_LENGTH_S;
+    const estimatedChunks = isMultiChunk
+      ? Math.ceil((durationS - WHISPER_STRIDE_LENGTH_S) / (WHISPER_CHUNK_LENGTH_S - WHISPER_STRIDE_LENGTH_S))
+      : 1;
+    let chunksFinalized = 0;
 
-    let sessionText = "";   // accumulated text for this recording session
-    let prevChunkText = ""; // last chunk's raw output, used for deduplication
-
-    for (const { data, chunkIndex, totalChunks } of chunks) {
-      if (isMultiChunk) {
-        document.getElementById("transcriptLabel").textContent =
-          `Transcribing chunk ${chunkIndex + 1} of ${totalChunks}\u2026`;
-      }
-
-      const result = await transcriber(data, {
-        return_timestamps: false,
-        repetition_penalty: 1.3,
-        no_repeat_ngram_size: 5
-      });
-
-      let chunkText = result.text.trim();
-      if (!chunkText) continue;
-
-      // Strip overlap with the previous chunk's output
-      if (chunkIndex > 0 && prevChunkText) {
-        chunkText = deduplicateOverlap(prevChunkText, chunkText);
-      }
-      prevChunkText = result.text.trim(); // keep raw for next dedup pass
-
-      if (chunkText) {
-        sessionText = sessionText ? (sessionText + " " + chunkText) : chunkText;
-      }
-
-      // Show partial progress in the textarea while still processing
-      if (isMultiChunk) {
-        const displayText = transcript
-          ? (transcript + "\n\n" + sessionText)
-          : sessionText;
-        ta.value = displayText;
-        ta.scrollTop = ta.scrollHeight;
+    // chunk_callback fires when each audio window is fully decoded.
+    // We use it to update the "chunk N of M" label.
+    function chunk_callback(chunk) {
+      if (!chunk.is_last) {
+        chunksFinalized++;
+        if (isMultiChunk) {
+          labelEl.textContent =
+            `Transcribing chunk ${chunksFinalized + 1} of ${estimatedChunks}\u2026`;
+        }
       }
     }
 
-    if (sessionText) {
-      transcript = transcript ? (transcript + "\n\n" + sessionText) : sessionText;
+    // callback_function fires after every token generation step.
+    // item[0].output_token_ids holds all tokens decoded so far for the current
+    // chunk. We decode them into text and stream it live into the textarea.
+    function callback_function(item) {
+      // Decode the running token sequence into text using the tokenizer.
+      // _decode_asr reconstructs the full transcript across all chunks seen so far.
+      try {
+        const partial = transcriber.tokenizer.decode(
+          item[0].output_token_ids,
+          { skip_special_tokens: true }
+        );
+        if (!partial) return;
+
+        // Show the already-committed transcript + the in-progress chunk text.
+        const displayText = transcript
+          ? (transcript + "\n\n" + partial.trim())
+          : partial.trim();
+        ta.value = displayText;
+        ta.scrollTop = ta.scrollHeight;
+      } catch {
+        // Decode can fail on partial token sequences — silently ignore.
+      }
+    }
+
+    const result = await transcriber(audioData, {
+      // Greedy decoding (deterministic, no sampling)
+      top_k: 0,
+      do_sample: false,
+      // Sliding window — the pipeline handles chunking and overlap natively
+      chunk_length_s: WHISPER_CHUNK_LENGTH_S,
+      stride_length_s: WHISPER_STRIDE_LENGTH_S,
+      // Quality settings
+      return_timestamps: false,
+      force_full_sequences: false,
+      repetition_penalty: 1.3,
+      no_repeat_ngram_size: 5,
+      // Streaming callbacks
+      callback_function,
+      chunk_callback,
+    });
+
+    const newText = result?.text?.trim() ?? "";
+
+    if (newText) {
+      transcript = transcript ? (transcript + "\n\n" + newText) : newText;
       ta.value = transcript;
       ta.readOnly = false; ta.classList.add("is-editable");
-      document.getElementById("transcriptLabel").textContent = "Transcript \u2014 editable";
+      labelEl.textContent = "Transcript \u2014 editable";
       ta.oninput = () => { transcript = ta.value; updateProcessBtn(); };
     } else {
-      // Nothing detected — restore editable state without changing transcript
       ta.readOnly = false; ta.classList.add("is-editable");
-      document.getElementById("transcriptLabel").textContent = "Transcript \u2014 editable";
+      labelEl.textContent = "Transcript \u2014 editable";
     }
 
     document.getElementById("micHint").textContent = "Click to begin recording";
