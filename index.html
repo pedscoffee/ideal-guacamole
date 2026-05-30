@@ -6,12 +6,15 @@
   <meta name="theme-color" content="#0d1117" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'none'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' blob: https://esm.run https://cdn.jsdelivr.net; script-src-attr 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' https://esm.run https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.xethub.hf.co https://raw.githubusercontent.com https://*.githubusercontent.com https://mlc.ai https://*.mlc.ai; font-src 'self'; media-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests" />
-  <title>Present — AI-Assisted A&P Notes</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' tauri: asset:; base-uri 'self'; object-src 'none'; form-action 'none'; img-src 'self' data: blob: tauri: asset:; style-src 'self' 'unsafe-inline' tauri: asset:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: tauri: asset:; worker-src 'self' blob:; connect-src 'self' tauri: asset: blob: https://huggingface.co https://*.huggingface.co https://*.xethub.hf.co https://raw.githubusercontent.com https://*.githubusercontent.com https://mlc.ai https://*.mlc.ai; font-src 'self' tauri: asset:; media-src 'self' blob: tauri: asset:; upgrade-insecure-requests" />
+  <title>Present — AI & Smart Templates</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.svg" />
-  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+  <script>
+    window.isTauri = '__TAURI__' in window;
+  </script>
 </head>
 <body>
   <div class="scanline"></div>
@@ -27,7 +30,7 @@
         <path d="M16 10 C16 10 22 6 23 4 C24 2 22 1 20 3 C18 5 16 10 16 10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
       </svg>
       <span class="logo-text">Present</span>
-      <span class="logo-tag">AI-Assisted A&P Notes</span>
+      <span class="logo-tag">Scribe & Smart Templates</span>
     </div>
     <div class="header-right">
       <div class="model-status" id="modelStatus">
@@ -41,7 +44,7 @@
       <button class="btn-settings" id="btnSettings" onclick="openSettings()" aria-label="Open settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
           <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
       </button>
     </div>
@@ -49,7 +52,6 @@
 
   <div class="autocopy-toast" id="autocopyToast" aria-live="polite"></div>
 
-  <!-- ===== SETTINGS DRAWER ===== -->
   <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
   <aside class="settings-drawer" id="settingsDrawer" aria-label="Settings" role="dialog" aria-modal="true">
     <div class="settings-header">
@@ -67,186 +69,125 @@
     </div>
 
     <div class="settings-body">
-
-      <!-- SECTION: Model Selection -->
-      <div class="settings-section">
-        <div class="settings-section-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M2 12h3M19 12h3M12 2v3M12 19v3"/></svg>
-          Model Selection
-        </div>
-        <p class="settings-section-desc">Choose models based on your hardware. Larger models are more accurate but require more memory and take longer to download. <strong>Changes take effect after clicking Reload Models.</strong></p>
-
-        <label class="settings-label" for="settingLLMModel">
-          Language Model (LLM)
-          <span class="settings-label-hint">Used to clean transcripts and generate structured notes</span>
-        </label>
-        <select class="settings-select" id="settingLLMModel">
-          <option value="gemma-2-2b-it-q4f32_1-MLC">&#9889; Fast — Gemma 2 2B (~1.3 GB, fastest)</option>
-          <option value="Phi-3.5-mini-instruct-q4f16_1-MLC">&#128309; Balanced-Light — Phi 3.5 Mini (~2.2 GB)</option>
-          <option value="Qwen3-4B-q4f16_1-MLC" selected>&#9878;&#65039; Balanced — Qwen3 4B (~2.3 GB, recommended)</option>
-          <option value="Llama-3-8B-Instruct-q4f16_1-MLC">&#127942; Best Quality — Llama 3 8B (~4.5 GB, M3 16GB+)</option>
-        </select>
-
-        <label class="settings-label" for="settingWhisperModel" style="margin-top:1rem">
-          Whisper Speech-to-Text Model
-          <span class="settings-label-hint">Larger models transcribe medical terminology more accurately</span>
-        </label>
-        <select class="settings-select" id="settingWhisperModel">
-          <option value="Xenova/whisper-tiny.en">&#9889; Tiny — (~75 MB, fastest, lower accuracy)</option>
-          <option value="Xenova/whisper-base.en">&#128309; Base — (~145 MB, good balance)</option>
-          <option value="Xenova/whisper-small.en" selected>&#9878;&#65039; Small — (~488 MB, recommended)</option>
-          <option value="Xenova/whisper-medium.en">&#127942; Medium — (~1.5 GB, best accuracy, M3 16GB+)</option>
-        </select>
-
-        <button class="btn-reload-models" id="btnReloadModels" onclick="reloadModels()" style="margin-top:1rem;display:flex;align-items:center;gap:0.4rem;padding:0.45rem 0.9rem;font-size:0.78rem;font-family:inherit;background:var(--accent,#4a9eff);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
-          Reload Models
-        </button>
-        <span class="settings-model-note" id="settingsModelNote" style="display:block;margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted,#888);"></span>
-      </div>
-
-      <!-- SECTION: Local PWA Security -->
-      <div class="settings-section">
-        <div class="settings-section-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-5"/></svg>
-          Local Security
-        </div>
-        <p class="settings-section-desc">Install this app from a trusted HTTPS or localhost origin. After the selected models finish loading once, the app shell and fetched model assets are available from the browser cache for local offline use. Keep patient identifiers out of persistent settings.</p>
-        <div class="offline-check-row">
-          <button class="settings-btn-add" onclick="checkOfflineReadiness()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>
-            Check offline cache
-          </button>
-          <span class="settings-save-status visible" id="offlineCacheStatus">Cache status unknown</span>
-        </div>
-      </div>
-
-      <!-- SECTION: Medical Terminology -->
-      <div class="settings-section">
-        <div class="settings-section-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
-          Medical Terminology
-        </div>
-        <p class="settings-section-desc">One term per line. During transcript cleanup, the LLM will use this list to correct any word that appears phonetically garbled or oddly spelled in a medical context — medications, diagnoses, procedures, anatomical terms, brand names, or anything else that Whisper commonly mishears. Add or remove terms based on what your practice uses. No need to predict how a word was misheard — the LLM fuzzy-matches against this list automatically.</p>
-        <label class="settings-label" for="settingTermVocabulary">
-          Term list
-          <span class="settings-label-hint">One term per line — applied during Pass 1 transcript cleanup</span>
-        </label>
-        <textarea
-          class="settings-textarea settings-textarea-sm"
-          id="settingTermVocabulary"
-          spellcheck="false"
-          rows="8"
-          placeholder="amoxicillin&#10;otitis media&#10;tympanosclerosis&#10;fluticasone propionate&#10;"
-        ></textarea>
-      </div>
-
-      <!-- SECTION: Shorthand Macros -->
-      <div class="settings-section">
-        <div class="settings-section-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Shorthand Macros
-        </div>
-        <p class="settings-section-desc">Add shortcuts that expand automatically as you type/edit or during note generation. Format as <code>.shortcut: expansion</code> (one per line). Starting shortcuts with a dot (like <code>.aom: acute otitis media</code>) makes them easy to trigger without expanding regular words.</p>
-        <label class="settings-label" for="settingMacros">
-          Macros list
-          <span class="settings-label-hint">One macro per line (e.g. <code>.sob: shortness of breath</code>)</span>
-        </label>
-        <textarea
-          class="settings-textarea settings-textarea-sm"
-          id="settingMacros"
-          spellcheck="false"
-          rows="8"
-          placeholder=".aom: acute otitis media&#10;.sob: shortness of breath&#10;.rtp: return precautions&#10;"
-        ></textarea>
-      </div>
-
-      <!-- SECTION: System Prompts -->
-      <div class="settings-section">
-        <div class="settings-section-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>
-          System Prompts
-        </div>
-        <p class="settings-section-desc">These prompts are sent to the LLM on every request. The medical terminology list above is appended to the cleanup prompt automatically — no need to add it here.</p>
-
-        <label class="settings-label" for="settingCleanupPrompt">
-          Pass 1 — Transcript Cleanup Prompt
-          <span class="settings-label-hint">Cleans raw ASR before structuring. Medical terminology list is appended automatically.</span>
-        </label>
-        <textarea class="settings-textarea settings-textarea-sm" id="settingCleanupPrompt" spellcheck="false" rows="5"></textarea>
-
-        <label class="settings-label" for="settingMainPrompt">
-          Pass 2 — Note Generation Prompt
-          <span class="settings-label-hint">Structures the cleaned dictation into A&P notes. The boilerplate trigger list below is appended automatically — do not duplicate it here.</span>
-        </label>
-        <textarea class="settings-textarea settings-textarea-lg" id="settingMainPrompt" spellcheck="false" rows="18"></textarea>
-      </div>
-
-      <!-- SECTION: Extra Pipeline Steps -->
-      <div class="settings-section">
-        <div class="settings-section-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M17 14l3 3-3 3"/></svg>
-          Extra Pipeline Steps
-        </div>
-        <p class="settings-section-desc">Optional prompts run after the main note is generated. Each enabled step gets its own output box with a separate copy button.</p>
-        <div class="pipeline-actions">
-          <button class="settings-btn-add pipeline-btn-inline" onclick="addPipelineStep()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add step
-          </button>
-          <button class="settings-btn-add pipeline-btn-inline" onclick="openPipelineLibrary()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg>
-            Browse library
-          </button>
-        </div>
-        <div class="pipeline-steps-list" id="pipelineStepsList"></div>
-      </div>
-
-      <!-- SECTION: Boilerplate Entries -->
       <div class="settings-section">
         <div class="settings-section-header">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Boilerplate Entries
+          Unified Library (Boilerplate & Smart Templates)
         </div>
-        <p class="settings-section-desc">Each entry has a <strong>key</strong> (used in <code>[BOILERPLATE:KEY]</code> tags), optional <strong>trigger phrases</strong> that tell the LLM when to emit the tag, and the <strong>boilerplate text</strong> injected into the output.</p>
-        <div class="boilerplate-list" id="boilerplateList"></div>
-        <button class="settings-btn-add" onclick="addBoilerplateEntry()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add boilerplate entry
-        </button>
+        <p class="settings-section-desc">These templates power both the <strong>Smart</strong> tab (regex auto-insertion) and the <strong>LLM Scribe</strong> (via boilerplate tags). Add dropdowns for interactive fields.</p>
+        
+        <div class="sc-btn-row sc-btn-row--mb">
+          <button id="sc-add-template-btn" class="settings-btn-add" onclick="openTemplateForm()">+ New Template</button>
+        </div>
+
+        <div id="sc-template-list" class="sc-template-list"></div>
+
+        <div id="sc-template-form" class="sc-template-form hidden">
+          <div class="sc-form-header">
+            <span id="sc-form-title-label">New Template</span>
+            <button class="sc-btn sc-btn-icon" onclick="closeTemplateForm()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <input type="hidden" id="sc-form-id">
+          
+          <label class="settings-label">Name</label>
+          <input type="text" id="sc-form-name" class="settings-input" placeholder="e.g. Dehydration Precautions">
+          
+          <label class="settings-label">Trigger Keywords <span class="settings-label-hint">(comma-separated)</span></label>
+          <input type="text" id="sc-form-triggers" class="settings-input" placeholder="e.g. dehydration, vomiting, diarrhea">
+          
+          <label class="settings-label">Template Type</label>
+          <select id="sc-form-type" class="settings-select" onchange="updateTemplateTypeFields()">
+            <option value="text">Text</option>
+            <option value="dropdown">Dropdown</option>
+          </select>
+
+          <div id="sc-form-text-fields">
+            <label class="settings-label">Content (HTML allowed)</label>
+            <textarea id="sc-form-content" class="settings-textarea" rows="4"></textarea>
+          </div>
+
+          <div id="sc-form-dropdown-fields" class="hidden">
+            <label class="settings-label">Dropdown Label</label>
+            <input type="text" id="sc-form-dropdown-label" class="settings-input" placeholder="e.g. Follow-Up">
+            
+            <label class="settings-label">Options <span class="settings-label-hint">(one per line)</span></label>
+            <textarea id="sc-form-options" class="settings-textarea" rows="4"></textarea>
+            
+            <label class="settings-label">Default Join</label>
+            <select id="sc-form-join" class="settings-select">
+              <option value="lines">Bullets</option>
+              <option value="comma">Comma list</option>
+              <option value="sentence">Sentence</option>
+            </select>
+            
+            <label class="settings-label" style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+              <input type="checkbox" id="sc-form-single-select"> Single-select only
+            </label>
+          </div>
+          
+          <label class="settings-label" style="margin-top:10px;">Category <span class="settings-label-hint">(Optional)</span></label>
+          <input type="text" id="sc-form-category" class="settings-input" placeholder="e.g. Respiratory">
+
+          <div class="sc-btn-row" style="margin-top:15px;">
+            <button class="settings-btn-save" onclick="saveTemplateForm()">Save Template</button>
+            <button class="settings-btn-cancel" onclick="closeTemplateForm()">Cancel</button>
+          </div>
+        </div>
+        
+        <label class="settings-label" style="margin-top:20px;">Smart Note Template Structure</label>
+        <p class="settings-label-hint">Defines how the Smart tab structures the final output. Use <code>{input}</code> for the one-liner and <code>{templates}</code> for the matched content.</p>
+        <textarea id="settingSmartNoteTemplate" class="settings-textarea" rows="3"></textarea>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M2 12h3M19 12h3M12 2v3M12 19v3"/></svg>
+          Model Selection (LLM Scribe)
+        </div>
+        <p class="settings-section-desc">Applies to the Voice and Text scribe tabs.</p>
+        <label class="settings-label">Language Model (LLM)</label>
+        <select class="settings-select" id="settingLLMModel">
+          <option value="gemma-2-2b-it-q4f32_1-MLC">&#9889; Fast — Gemma 2 2B (~1.3 GB)</option>
+          <option value="Phi-3.5-mini-instruct-q4f16_1-MLC">&#128309; Balanced-Light — Phi 3.5 Mini (~2.2 GB)</option>
+          <option value="Qwen3-4B-q4f16_1-MLC" selected>&#9878;&#65039; Balanced — Qwen3 4B (~2.3 GB)</option>
+        </select>
+        <label class="settings-label" style="margin-top:1rem">Whisper Speech-to-Text Model</label>
+        <select class="settings-select" id="settingWhisperModel">
+          <option value="Xenova/whisper-tiny.en">&#9889; Tiny — (~75 MB)</option>
+          <option value="Xenova/whisper-small.en" selected>&#9878;&#65039; Small — (~488 MB)</option>
+        </select>
+        <button class="settings-btn-save" style="margin-top:1rem" onclick="reloadModels()">Reload Models</button>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-header">Terminology & Macros</div>
+        <label class="settings-label">Term list <span class="settings-label-hint">Applied during Whisper cleanup</span></label>
+        <textarea class="settings-textarea" id="settingTermVocabulary" rows="4"></textarea>
+        
+        <label class="settings-label" style="margin-top:10px;">Shorthand Macros <span class="settings-label-hint">Expands as you type (.sob: shortness of breath)</span></label>
+        <textarea class="settings-textarea" id="settingMacros" rows="4"></textarea>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-header">System Prompts</div>
+        <label class="settings-label">Pass 1 — Transcript Cleanup</label>
+        <textarea class="settings-textarea" id="settingCleanupPrompt" rows="4"></textarea>
+        <label class="settings-label" style="margin-top:10px;">Pass 2 — Note Generation</label>
+        <textarea class="settings-textarea" id="settingMainPrompt" rows="8"></textarea>
       </div>
 
     </div>
 
     <div class="settings-footer">
-      <button class="btn-settings-save" onclick="saveSettings()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
-        Save &amp; Apply
-      </button>
+      <button class="btn-settings-save" onclick="saveSettings()">Save &amp; Apply</button>
       <span class="settings-save-status" id="settingsSaveStatus"></span>
     </div>
   </aside>
 
-  <div class="pipeline-library-modal" id="pipelineLibraryModal" role="dialog" aria-modal="true" aria-label="Prompt library">
-    <div class="pipeline-library-backdrop" onclick="closePipelineLibrary()"></div>
-    <div class="pipeline-library-panel">
-      <div class="pipeline-library-header">
-        <div>
-          <span class="panel-label">LIBRARY</span>
-          <h2>Prompt Templates</h2>
-        </div>
-        <button class="settings-close" onclick="closePipelineLibrary()" aria-label="Close prompt library">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="pipeline-library-grid" id="pipelineLibraryGrid"></div>
-    </div>
-  </div>
-
   <main>
     <div class="workspace">
-
-      <!-- LEFT: Input Panel -->
       <section class="panel panel-input">
         <div class="panel-header">
           <span class="panel-label">INPUT</span>
@@ -254,105 +195,71 @@
         </div>
 
         <div class="input-mode-tabs">
-          <button class="tab-btn active" id="tabMic" onclick="switchTab('mic')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            Voice
-          </button>
-          <button class="tab-btn" id="tabText" onclick="switchTab('text')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            Text
-          </button>
+          <button class="tab-btn active" id="tabMic" onclick="switchTab('mic')">Voice</button>
+          <button class="tab-btn" id="tabText" onclick="switchTab('text')">Text</button>
+          <button class="tab-btn" id="tabSmart" onclick="switchTab('smart')">Smart</button>
         </div>
 
-        <!-- MIC TAB -->
         <div class="tab-content" id="micTab">
           <div class="mic-area">
             <div class="mic-visualizer" id="micVisualizer">
-              <div class="mic-ring mic-ring-1"></div>
-              <div class="mic-ring mic-ring-2"></div>
-              <div class="mic-ring mic-ring-3"></div>
-              <canvas id="micWaveform" width="160" height="160"></canvas>
-              <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              </button>
+              <button class="mic-btn" id="micBtn" onclick="toggleRecording()">MIC</button>
             </div>
             <p class="mic-hint" id="micHint">Click to begin recording</p>
-            <div class="recording-timer" id="recordingTimer" style="display:none">
-              <span class="rec-dot"></span>
-              <span id="timerDisplay">00:00</span>
-            </div>
           </div>
-
-          <div class="transcript-box" id="transcriptBox">
+          <div class="transcript-box">
             <div class="transcript-label" id="transcriptLabel">Transcript</div>
-            <textarea
-              class="transcript-text"
-              id="transcriptText"
-              readonly
-              placeholder="Your words will appear here as you speak…"
-              spellcheck="true"
-              aria-label="Voice transcript — editable after transcription"
-            ></textarea>
+            <textarea class="transcript-text" id="transcriptText" placeholder="Your words will appear here..." spellcheck="true"></textarea>
           </div>
         </div>
 
-        <!-- TEXT TAB -->
         <div class="tab-content hidden" id="textTab">
           <div class="text-input-area">
-            <label for="textInput">Paste or type your assessment &amp; plan dictation:</label>
-            <textarea id="textInput" placeholder="e.g. Patient has acute otitis media, we will start amoxicillin. For pain and fever give Tylenol and Motrin and encourage fluids. Return precautions for worsening fever, pain, or if not improving. Follow up PRN..."></textarea>
+            <label for="textInput">Paste or type your dictation (LLM):</label>
+            <textarea id="textInput" placeholder="e.g. Patient has AOM, start amox..."></textarea>
+          </div>
+        </div>
+
+        <div class="tab-content hidden" id="smartTab">
+          <div class="text-input-area">
+            <label for="smartInput">Clinical One-Liner (Auto-Templates):</label>
+            <textarea id="smartInput" class="sc-input" placeholder="e.g. 2yo with fever and vomiting x1 day..."></textarea>
+            <div class="sc-status-bar">
+              <span id="sc-status-text" class="sc-status-text">Ready</span>
+            </div>
           </div>
         </div>
 
         <div class="action-bar">
-          <button class="btn-process" id="btnProcess" onclick="processNote()" disabled>
-            <span class="btn-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            </span>
-            Generate Notes
-          </button>
+          <button class="btn-process" id="btnProcess" onclick="processNote()" disabled>Generate Notes</button>
           <button class="btn-clear" onclick="clearAll()">Clear</button>
         </div>
       </section>
 
-      <!-- RIGHT: Output Panel -->
       <section class="panel panel-output">
         <div class="panel-header">
           <span class="panel-label">OUTPUT</span>
           <h2>Structured Notes</h2>
-          <span class="edit-hint" id="editHint" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            editable
-          </span>
           <div class="copy-split-btn" id="btnCopyGroup" style="display:none">
-            <button class="btn-copy btn-copy-main" id="btnCopy" onclick="copyOutput()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              Copy All
-            </button>
-            <button class="btn-copy btn-copy-chevron" id="btnCopyChevron" onclick="toggleCopyDropdown(event)" aria-label="Copy options" aria-expanded="false" aria-haspopup="listbox">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <div class="copy-dropdown" id="copyDropdown" role="listbox" aria-label="Copy options">
-              <!-- populated by JS -->
-            </div>
+            <button class="btn-copy btn-copy-main" id="btnCopy" onclick="copyOutput()">Copy All</button>
           </div>
         </div>
 
         <div class="output-area" id="outputArea">
           <div class="output-empty" id="outputEmpty">
-            <div class="empty-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            </div>
-            <p>Structured notes will appear here after processing</p>
+            <p>Notes will appear here after processing or typing</p>
           </div>
-          <div class="output-content" id="outputContent" style="display:none" contenteditable="false"></div>
-          <div class="pipeline-steps-output" id="pipelineStepsOutput" style="display:none"></div>
-          <div class="output-streaming" id="outputStreaming" style="display:none">
-            <div class="thinking-label">
-              <span class="think-dot"></span>
-              Generating notes…
+
+          <div id="llmView" style="display:none">
+            <div class="output-content" id="outputContent" contenteditable="false"></div>
+            <div class="output-streaming" id="outputStreaming" style="display:none">
+              <div class="thinking-label">Generating notes…</div>
+              <div class="stream-text" id="streamText"></div>
             </div>
-            <div class="stream-text" id="streamText"></div>
+          </div>
+
+          <div id="smartView" style="display:none">
+            <div id="sc-preview-rendered" class="sc-md-content"></div>
           </div>
         </div>
 
@@ -364,15 +271,6 @@
 
     </div>
   </main>
-
-  <footer>
-    <span>This tool is currently in beta development.  The goal is to explore what is possible, but in its current state any actual clinical use should be strictly avoided.</span>
-    <span class="footer-sep">|</span>
-    <span>Powered by <a href="https://webllm.mlc.ai/" target="_blank" rel="noopener noreferrer">WebLLM</a> &amp; <a href="https://huggingface.co/Qwen/Qwen3-4B" target="_blank" rel="noopener noreferrer">Qwen3</a></span>
-    <span class="footer-sep">|</span>
-    <a href="https://github.com/pedscoffee/ideal-guacamole" target="_blank" rel="noopener noreferrer">Open Source</a>
-  </footer>
-
   <script type="module" src="app.js"></script>
 </body>
 </html>
